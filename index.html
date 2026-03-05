@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マイウォーキングアプリ LITE v13.1</title>
+    <title>マイウォーキングアプリ LITE v13.2</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -11,6 +11,7 @@
     
     <style>
         body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f0f4f8; color: #333; padding-bottom: 80px; }
+        body.fullscreen-active { overflow: hidden; } /* 全画面時のスクロール防止 */
         .container { max-width: 600px; margin: auto; padding: 15px; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 15px; }
         h1 { font-size: 1.2em; margin: 0; border-bottom: 2px solid #27ae60; padding-bottom: 5px; }
@@ -23,7 +24,25 @@
         .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         .data-item { background: #eef2f7; padding: 10px; border-radius: 10px; text-align: center; }
         .data-value { font-size: 1.2em; font-weight: bold; color: #3498db; }
-        #map { height: 320px; width: 100%; border-radius: 15px; border: 2px solid #ddd; background: #f9f9f9; }
+        
+        /* 🗺️ 地図のフルスクリーンUI設定 */
+        #map-container { position: relative; margin-bottom: 15px; }
+        #map { height: 320px; width: 100%; border-radius: 15px; border: 2px solid #ddd; z-index: 1; }
+        #normal-fullscreen-btn { position: absolute; top: 10px; right: 10px; z-index: 1000; padding: 8px 12px; background: white; border: 2px solid #ccc; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        #map-container.is-fullscreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10000; margin: 0; background: white; }
+        #map-container.is-fullscreen #map { height: 100vh !important; border-radius: 0; border: none; }
+        #map-container.is-fullscreen #normal-fullscreen-btn { display: none; }
+        
+        #fullscreen-controls { display: none; }
+        #map-container.is-fullscreen #fullscreen-controls {
+            display: flex; flex-direction: column; gap: 6px; position: absolute; top: calc(env(safe-area-inset-top, 40px) + 10px); 
+            left: 50%; transform: translateX(-50%); z-index: 10001; width: 96%; max-width: 400px;
+            background: rgba(255, 255, 255, 0.95); padding: 8px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); backdrop-filter: blur(5px);
+        }
+        #fullscreen-controls .fs-btn-row { display: flex; gap: 4px; width: 100%; align-items: stretch; }
+        #fullscreen-controls button { flex: 1; padding: 10px 0px; font-size: 0.8em; font-weight: bold; border: none; border-radius: 6px; color: white; cursor: pointer; white-space: nowrap; }
+        #fullscreen-controls .fs-btn-search { width: 100%; padding: 12px; font-size: 1em; background: #3498db; margin-top: 2px; }
+
         input, select { padding: 8px; border-radius: 5px; border: 1px solid #ccc; font-size: 1em; width: 100%; box-sizing: border-box; }
         button.action-btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; background: #3498db; color: white; margin-top: 10px; }
         button.save-btn { background: #27ae60; font-size: 1.1em; padding: 15px; }
@@ -49,7 +68,7 @@
     <div class="container">
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
-                <h1>健康ログ <span class="version-badge">v13.1 LITE</span></h1>
+                <h1>健康ログ <span class="version-badge">v13.2 LITE</span></h1>
                 <div style="background: #f0f4f8; padding: 10px; border-radius: 10px; margin-bottom: 15px;">
                     <strong>目標ルート作成:</strong><br>
                     <div class="route-mode-box">
@@ -61,17 +80,34 @@
                         <input type="number" id="goal-value" value="1" step="0.5" style="flex: 1;">
                     </div>
                     <button id="route-btn" class="action-btn" onclick="generateGoalRoute()">ルート検索開始</button>
+                    
                     <div style="display: flex; gap: 5px; margin-top: 10px;">
-                        <button class="action-btn" style="background: #2980b9; margin-top:0;" onclick="centerMap()">📍 現在地</button>
+                        <button class="action-btn" style="background: #2980b9; margin-top:0;" onclick="centerMap()">📍 開始</button>
+                        <button class="action-btn" style="background: #27ae60; margin-top:0;" onclick="enableWaypointMode()">🟢 追加</button>
                         <button class="action-btn" style="background: #e74c3c; margin-top:0;" onclick="clearMap()">✖ 消去</button>
                     </div>
                     <div id="dest-hint" style="display:none; text-align:center; font-size:0.8em; margin-top:5px; color:#e74c3c;">地図をタップして目的地を決めてください</div>
                 </div>
+                
                 <div class="data-grid">
                     <div class="data-item">今日の歩数<br><span id="steps-display" class="data-value">0</span> 歩</div>
                     <div class="data-item">運動消費<br><span id="calories-display" class="data-value" style="color: #16a085;">0</span> kcal</div>
                 </div>
-                <div id="map"></div>
+                
+                <div id="map-container">
+                    <button id="normal-fullscreen-btn" onclick="toggleFullscreen()">🗺️ 拡大</button>
+                    <div id="map"></div>
+                    <div id="fullscreen-controls">
+                        <div class="fs-btn-row">
+                            <button style="background: #2980b9;" onclick="centerMap()">📍開始</button>
+                            <button style="background: #27ae60;" onclick="enableWaypointMode()">🟢追加</button>
+                            <button style="background: #e74c3c;" onclick="clearMap()">✖消去</button>
+                            <button style="background: #7f8c8d;" onclick="toggleFullscreen()">❌閉じる</button>
+                        </div>
+                        <button id="fs-route-btn" class="fs-btn-search" onclick="generateGoalRoute()">🔍 ルートを再検索</button>
+                    </div>
+                </div>
+
             </div>
         </div>
 
@@ -154,8 +190,14 @@
         let steps = 0;
         let todayFoodLogs = { bf: [], lu: [], dn: [], sn: [] };
         let myChart = null;
-        let map, marker, goalPath, destMarker;
+        
+        // --- 地図用変数 ---
+        let map, marker, goalPath, destMarker, waypointMarker;
         let currentLat = 35.6812, currentLng = 139.7671;
+        let isTrackingMode = true;
+        let isFullscreen = false;
+        let isWaypointMode = false;
+        let isFirstLocation = true;
 
         function saveMapKey() {
             const key = document.getElementById('map-api-key').value.trim();
@@ -293,25 +335,65 @@
             });
         }
 
+        // --- 地図関連（完全修復） ---
         function initMap() {
             map = L.map('map', {zoomControl: false}).setView([currentLat, currentLng], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             marker = L.marker([currentLat, currentLng]).addTo(map);
             goalPath = L.polyline([], {color: '#2980b9', weight: 6}).addTo(map);
 
-            map.on('locationfound', e => {
-                currentLat = e.latlng.lat; currentLng = e.latlng.lng;
-                marker.setLatLng(e.latlng);
-            });
+            // 地図をドラッグしたら追従モードを解除
+            map.on('dragstart', () => { isTrackingMode = false; });
+
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(p => {
+                    currentLat = p.coords.latitude; 
+                    currentLng = p.coords.longitude;
+                    const pos = [currentLat, currentLng];
+                    marker.setLatLng(pos);
+                    
+                    if (isFirstLocation) { map.setView(pos, 15); isFirstLocation = false; }
+                    else if (isTrackingMode) { map.setView(pos, map.getZoom()); }
+                }, null, { enableHighAccuracy: true });
+            }
 
             map.on('click', e => {
-                if (document.querySelector('input[name="route-mode"]:checked').value === 'dest') {
-                    if (destMarker) map.removeLayer(destMarker);
-                    destMarker = L.marker(e.latlng).addTo(map).bindPopup("目的地").openPopup();
+                const mode = document.querySelector('input[name="route-mode"]:checked').value;
+                if (mode === 'dest') {
+                    if (isWaypointMode) {
+                        if (waypointMarker) map.removeLayer(waypointMarker);
+                        const greenIcon = new L.Icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+                        });
+                        waypointMarker = L.marker(e.latlng, {icon: greenIcon}).addTo(map).bindPopup("中継地").openPopup();
+                        isWaypointMode = false;
+                        document.getElementById('dest-hint').innerText = "地図をタップして目的地を決めてください";
+                    } else {
+                        if (destMarker) map.removeLayer(destMarker);
+                        const redIcon = new L.Icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+                        });
+                        destMarker = L.marker(e.latlng, {icon: redIcon}).addTo(map).bindPopup("目的地").openPopup();
+                    }
                 }
             });
+        }
 
-            map.locate({setView: true, watch: true, enableHighAccuracy: true});
+        function toggleFullscreen() {
+            const container = document.getElementById('map-container');
+            isFullscreen = !isFullscreen;
+            if (isFullscreen) {
+                container.classList.add('is-fullscreen');
+                document.body.classList.add('fullscreen-active');
+            } else {
+                container.classList.remove('is-fullscreen');
+                document.body.classList.remove('fullscreen-active');
+            }
+            setTimeout(() => { if (map) map.invalidateSize(); }, 300);
         }
 
         function toggleRouteMode() {
@@ -320,30 +402,66 @@
             document.getElementById('dest-hint').style.display = (mode === 'dest' ? 'block' : 'none');
         }
 
-        function centerMap() { map.setView([currentLat, currentLng], 16); }
-        function clearMap() { if (destMarker) map.removeLayer(destMarker); goalPath.setLatLngs([]); }
+        // 📍開始ボタン（現在地追従をONにする）
+        function centerMap() {
+            isTrackingMode = true;
+            if (map) map.setView([currentLat, currentLng], 17);
+        }
+
+        function clearMap() { 
+            if (destMarker) { map.removeLayer(destMarker); destMarker = null; }
+            if (waypointMarker) { map.removeLayer(waypointMarker); waypointMarker = null; }
+            goalPath.setLatLngs([]); 
+            isWaypointMode = false;
+            document.getElementById('dest-hint').innerText = "地図をタップして目的地を決めてください";
+        }
+
+        function enableWaypointMode() {
+            const mode = document.querySelector('input[name="route-mode"]:checked').value;
+            if (mode !== 'dest') return alert("中継地を追加するには「目的地モード」にしてください。");
+            isWaypointMode = true;
+            document.getElementById('dest-hint').innerText = "地図をタップして中継地(緑)を決めてください";
+            if (isFullscreen) alert("中継地追加モードです。\n地図をタップしてください。");
+        }
 
         async function generateGoalRoute() {
             const key = localStorage.getItem('map_api_key');
             if(!key) return alert("設定画面で地図APIキーを保存してください。");
-            const btn = document.getElementById('route-btn');
+            
+            const btn1 = document.getElementById('route-btn');
+            const btn2 = document.getElementById('fs-route-btn');
             const mode = document.querySelector('input[name="route-mode"]:checked').value;
             const type = document.getElementById('goal-type').value;
             const value = parseFloat(document.getElementById('goal-value').value);
             
-            btn.innerText = "検索中..."; btn.disabled = true;
+            btn1.innerText = "検索中..."; btn1.disabled = true;
+            if(btn2) { btn2.innerText = "検索中..."; btn2.disabled = true; }
 
             try {
-                let body = { coordinates: [[currentLng, currentLat]] };
+                let url = 'https://api.openrouteservice.org/v2/directions/foot-hiking/geojson';
+                let body = { 
+                    coordinates: [[currentLng, currentLat]],
+                    units: "m"
+                };
+
                 if (mode === 'loop') {
                     let distMeters = (type === 'distance' ? value : value * 0.0007) * 1000;
-                    body.options = { round_trip: { length: Math.round(distMeters), points: 3, seed: Math.floor(Math.random()*100) } };
+                    body.options = { 
+                        round_trip: { 
+                            length: Math.round(distMeters), 
+                            points: 3, 
+                            seed: Math.floor(Math.random()*100) 
+                        } 
+                    };
                 } else {
                     if (!destMarker) throw new Error("目的地を地図上でタップしてください");
+                    if (waypointMarker) {
+                        body.coordinates.push([waypointMarker.getLatLng().lng, waypointMarker.getLatLng().lat]);
+                    }
                     body.coordinates.push([destMarker.getLatLng().lng, destMarker.getLatLng().lat]);
                 }
 
-                const res = await fetch('https://api.openrouteservice.org/v2/directions/foot-hiking/geojson', {
+                const res = await fetch(url, {
                     method: 'POST',
                     headers: { 
                         'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8', 
@@ -364,11 +482,14 @@
                 const route = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
                 goalPath.setLatLngs(route);
                 map.fitBounds(goalPath.getBounds());
+                isTrackingMode = false; // ルート検索後は全体を見せるために追従をOFFにする
+                
                 alert("ルートを作成しました！");
             } catch (e) { 
                 alert("エラー: " + e.message); 
             } finally { 
-                btn.innerText = "ルート検索開始"; btn.disabled = false; 
+                btn1.innerText = "ルート検索開始"; btn1.disabled = false; 
+                if(btn2) { btn2.innerText = "🔍 ルートを再検索"; btn2.disabled = false; }
             }
         }
 
