@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マイウォーキングアプリ LITE v12.8</title>
+    <title>マイウォーキングアプリ LITE v12.8 Final</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -27,7 +27,7 @@
         .data-item { background: #eef2f7; padding: 10px; border-radius: 10px; text-align: center; }
         .data-value { font-size: 1.2em; font-weight: bold; color: #3498db; }
         
-        #map { height: 300px; width: 100%; border-radius: 15px; border: 2px solid #ddd; background: #eee; }
+        #map { height: 320px; width: 100%; border-radius: 15px; border: 2px solid #ddd; z-index: 1; }
 
         input[type="number"], input[type="text"], input[type="date"], select, input[type="password"] { padding: 8px; border-radius: 5px; border: 1px solid #ccc; font-size: 1em; width: 100%; box-sizing: border-box; }
         button.action-btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; background: #3498db; color: white; margin-top: 10px; }
@@ -49,6 +49,11 @@
         
         .balance-box { background: #fff3cd; border: 2px solid #ffeeba; padding: 15px; border-radius: 10px; text-align: center; margin-top: 15px; }
         .balance-result { font-size: 1.3em; font-weight: bold; margin-top: 5px; }
+        
+        .route-mode-box { display: flex; gap: 10px; background: #eef2f7; padding: 10px; border-radius: 10px; margin-bottom: 10px; }
+        .route-mode-box label { flex: 1; text-align: center; font-weight: bold; font-size: 0.8em; cursor: pointer; padding: 5px; }
+        .route-mode-box input[type="radio"] { display: none; }
+        .route-mode-box input[type="radio"]:checked + span { color: #3498db; border-bottom: 2px solid #3498db; }
     </style>
 </head>
 <body>
@@ -56,12 +61,30 @@
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
                 <h1>健康ログ <span class="version-badge">v12.8 LITE</span></h1>
+                
+                <div style="background: #f0f4f8; padding: 10px; border-radius: 10px; margin-bottom: 15px;">
+                    <strong>目標ルート作成:</strong><br>
+                    <div class="route-mode-box">
+                        <label><input type="radio" name="route-mode" value="loop" checked onchange="toggleRouteMode()"><span>🔄 周回</span></label>
+                        <label><input type="radio" name="route-mode" value="dest" onchange="toggleRouteMode()"><span>📍 目的地</span></label>
+                    </div>
+                    <div id="distance-input-area" style="display: flex; gap: 10px; margin-top: 5px;">
+                        <select id="goal-type" style="flex: 1;"><option value="distance">距離 (km)</option><option value="steps">歩数 (歩)</option></select>
+                        <input type="number" id="goal-value" value="1" step="0.5" style="flex: 1;">
+                    </div>
+                    <button id="route-btn" class="action-btn" onclick="generateGoalRoute()">ルート検索開始</button>
+                    <div style="display: flex; gap: 5px; margin-top: 10px;">
+                        <button class="action-btn" style="background: #2980b9; margin-top:0;" onclick="centerMap()">📍現在地</button>
+                        <button class="action-btn" style="background: #e74c3c; margin-top:0;" onclick="clearMap()">✖消去</button>
+                    </div>
+                    <div id="dest-hint" style="display:none; text-align:center; font-size:0.8em; margin-top:5px; color:#e74c3c;">地図をタップして目的地を決めてください</div>
+                </div>
+
                 <div class="data-grid">
                     <div class="data-item">今日の歩数<br><span id="steps-display" class="data-value">0</span> 歩</div>
                     <div class="data-item">運動消費<br><span id="calories-display" class="data-value" style="color: #16a085;">0</span> kcal</div>
                 </div>
                 <div id="map"></div>
-                <p style="font-size: 0.7em; color: #777; text-align: center;">※地図の表示はPhase 3で修復されます</p>
             </div>
         </div>
 
@@ -160,6 +183,8 @@
         let steps = 0;
         let todayFoodLogs = { bf: [], lu: [], dn: [], sn: [] };
         let myChart = null;
+        let map, marker, goalPath, destMarker;
+        let currentLat = 35.6812, currentLng = 139.7671;
 
         function saveMapKey() {
             const key = document.getElementById('map-api-key').value;
@@ -173,6 +198,7 @@
             document.getElementById('tab-' + tabName).classList.add('active');
             event.currentTarget.classList.add('active');
             if(tabName === 'history') renderGraph();
+            if(tabName === 'walk' && map) setTimeout(() => map.invalidateSize(), 300);
         }
 
         function clearManualInput() {
@@ -223,7 +249,6 @@
             const dob = new Date(document.getElementById('dob-input').value);
             const mode = document.getElementById('goal-mode').value;
 
-            // 年齢計算
             let age = 0;
             if (dob) {
                 const today = new Date();
@@ -231,12 +256,10 @@
                 if (today.getMonth() < dob.getMonth() || (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())) age--;
             }
 
-            // BMI計算
             let bmi = 0;
             if(height > 0) bmi = (weight / Math.pow(height/100, 2)).toFixed(1);
             document.getElementById('bmi-display').innerText = bmi;
 
-            // 基礎代謝(ハリス・ベネディクト)
             let bmr = 0;
             if(weight > 0 && height > 0 && age > 0) {
                 if(gender === 'male') bmr = 13.397 * weight + 4.799 * height - 5.677 * age + 88.362;
@@ -245,25 +268,20 @@
             bmr = Math.round(bmr);
             document.getElementById('bmr-display').innerText = bmr;
 
-            // 消費カロリー
             const activeCal = Math.round(steps * weight * 0.0005);
             document.getElementById('calories-display').innerText = activeCal;
             document.getElementById('bal-out').innerText = bmr + activeCal;
 
-            // 摂取カロリー合計
             let tKcal=0, tP=0, tF=0, tC=0, tS=0;
             Object.values(todayFoodLogs).flat().forEach(i => {
                 tKcal += i.kcal; tP += i.p; tF += i.f; tC += i.c; tS += i.s;
             });
             document.getElementById('bal-in').innerText = Math.round(tKcal);
 
-            // カロリーバランス表示
             const balance = Math.round(tKcal - (bmr + activeCal));
             const balEl = document.getElementById('balance-result-text');
             balEl.innerText = (balance > 0 ? "+" : "") + balance + " kcal";
-            balEl.style.color = (balance > 200 || balance < -500) ? "#e74c3c" : "#27ae60";
 
-            // 目標設定
             let targetCal = bmr + activeCal;
             if(mode === 'diet') targetCal -= 300;
             if(mode === 'muscle') targetCal += 300;
@@ -279,7 +297,6 @@
             };
             updateBar('p', tP, targetP); updateBar('f', tF, targetF); updateBar('c', tC, targetC);
 
-            // プロフィール保存
             localStorage.setItem('user_lite_profile', JSON.stringify({
                 gender, dob: document.getElementById('dob-input').value, weight, height, mode, 
                 logs: todayFoodLogs, lastDate: new Date().toLocaleDateString()
@@ -291,21 +308,17 @@
             const date = new Date().toLocaleDateString();
             const weight = document.getElementById('weight-input').value;
             const bal = document.getElementById('balance-result-text').innerText;
-            
             const data = { date, steps, weight, balance: bal };
             history = [data, ...history.filter(h => h.date !== date)];
             localStorage.setItem('walkingHistory', JSON.stringify(history));
-            alert("本日の記録を履歴に保存しました！");
+            alert("保存しました！");
             displayHistory();
         }
 
         function displayHistory() {
             const history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
             document.getElementById('history-list').innerHTML = history.map(h => `
-                <div class="history-item">
-                    <strong>${h.date}</strong><br>
-                    体重: ${h.weight}kg / 歩数: ${h.steps}歩 / バランス: ${h.balance}
-                </div>
+                <div class="history-item"><strong>${h.date}</strong><br>体重: ${h.weight}kg / 歩数: ${h.steps}歩 / 収支: ${h.balance}</div>
             `).join('');
         }
 
@@ -319,14 +332,83 @@
                 type: 'line',
                 data: {
                     labels: data.map(h => h.date),
-                    datasets: [{ label: '体重(kg)', data: data.map(h => h.weight), borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.1)', fill: true, tension: 0.3 }]
+                    datasets: [{ label: '体重(kg)', data: data.map(h => h.weight), borderColor: '#3498db', tension: 0.3 }]
                 },
                 options: { responsive: true, plugins: { legend: { display: false } } }
             });
         }
 
+        // --- 地図機能(Phase 3修復) ---
+        function initMap() {
+            map = L.map('map', {zoomControl: false}).setView([currentLat, currentLng], 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+            marker = L.marker([currentLat, currentLng]).addTo(map);
+            goalPath = L.polyline([], {color: '#2980b9', weight: 6}).addTo(map);
+
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(p => {
+                    currentLat = p.coords.latitude; currentLng = p.coords.longitude;
+                    marker.setLatLng([currentLat, currentLng]);
+                });
+            }
+
+            map.on('click', e => {
+                if (document.querySelector('input[name="route-mode"]:checked').value === 'dest') {
+                    if (destMarker) map.removeLayer(destMarker);
+                    destMarker = L.marker(e.latlng).addTo(map).bindPopup("目的地").openPopup();
+                }
+            });
+        }
+
+        function toggleRouteMode() {
+            const mode = document.querySelector('input[name="route-mode"]:checked').value;
+            document.getElementById('distance-input-area').style.display = (mode === 'loop' ? 'flex' : 'none');
+            document.getElementById('dest-hint').style.display = (mode === 'dest' ? 'block' : 'none');
+        }
+
+        function centerMap() { map.setView([currentLat, currentLng], 16); }
+        function clearMap() { if (destMarker) map.removeLayer(destMarker); goalPath.setLatLngs([]); }
+
+        async function generateGoalRoute() {
+            const key = localStorage.getItem('map_api_key');
+            if(!key) return alert("設定画面で地図APIキーを保存してください。");
+            
+            const btn = document.getElementById('route-btn');
+            const mode = document.querySelector('input[name="route-mode"]:checked').value;
+            const type = document.getElementById('goal-type').value;
+            const value = parseFloat(document.getElementById('goal-value').value);
+            
+            btn.innerText = "計算中..."; btn.disabled = true;
+
+            try {
+                let url = 'https://api.openrouteservice.org/v2/directions/foot-hiking/geojson';
+                let body = { coordinates: [[currentLng, currentLat]] };
+
+                if (mode === 'loop') {
+                    let distMeters = (type === 'distance' ? value : value * 0.0007) * 1000;
+                    body.options = { round_trip: { length: distMeters, points: 3, seed: Math.floor(Math.random()*100) } };
+                } else {
+                    if (!destMarker) throw new Error("地図をタップして目的地を決めてください");
+                    body.coordinates.push([destMarker.getLatLng().lng, destMarker.getLatLng().lat]);
+                }
+
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Authorization': key, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                if (!res.ok) throw new Error("通信エラーまたはキーが無効です");
+                const data = await res.json();
+                const route = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                goalPath.setLatLngs(route);
+                map.fitBounds(goalPath.getBounds());
+                alert("ルートを作成しました！");
+            } catch (e) { alert(e.message); }
+            finally { btn.innerText = "ルート検索開始"; btn.disabled = false; }
+        }
+
         window.onload = function() {
-            // 歩数連携（URLパラメータ）
             const params = new URLSearchParams(window.location.search);
             steps = parseInt(params.get('y_steps')) || 0;
             document.getElementById('steps-display').innerText = steps.toLocaleString();
@@ -342,9 +424,7 @@
             }
             document.getElementById('map-api-key').value = localStorage.getItem('map_api_key') || "";
             
-            renderLogs();
-            calcAll();
-            displayHistory();
+            renderLogs(); calcAll(); displayHistory(); initMap();
         };
     </script>
 </body>
