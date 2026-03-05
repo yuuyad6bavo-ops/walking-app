@@ -27,24 +27,28 @@
         .data-item { background: #eef2f7; padding: 10px; border-radius: 10px; text-align: center; }
         .data-value { font-size: 1.2em; font-weight: bold; color: #3498db; }
         
-        #map { height: 300px; width: 100%; border-radius: 15px; border: 2px solid #ddd; }
+        #map { height: 300px; width: 100%; border-radius: 15px; border: 2px solid #ddd; background: #eee; }
 
         input[type="number"], input[type="text"], input[type="date"], select, input[type="password"] { padding: 8px; border-radius: 5px; border: 1px solid #ccc; font-size: 1em; width: 100%; box-sizing: border-box; }
         button.action-btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; background: #3498db; color: white; margin-top: 10px; }
+        button.save-btn { background: #27ae60; font-size: 1.1em; padding: 15px; }
         
         details { background: #f8f9fa; padding: 10px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #eee; }
         summary { font-weight: bold; cursor: pointer; padding: 5px 0; }
-        .profile-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; }
+        .profile-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; font-size: 0.9em; }
         
         .meal-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 10px; text-align: center; font-size: 0.7em; }
         .meal-grid input { padding: 5px; font-size: 1em; text-align: center; }
         
         .food-log-item { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #ddd; padding: 6px 10px; border-radius: 5px; font-size: 0.85em; margin-bottom: 5px; }
-        .food-log-item button { background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 4px 8px; }
+        .food-log-item button { background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 0.8em; }
 
         .pfc-container { margin-top: 15px; padding: 12px; background: #fff; border-radius: 10px; border: 1px solid #ddd; }
         .pfc-bar-bg { background: #eef2f7; border-radius: 5px; height: 12px; width: 100%; overflow: hidden; margin-bottom: 8px; }
         .pfc-bar-fg { height: 100%; width: 0%; transition: width 0.4s ease; }
+        
+        .balance-box { background: #fff3cd; border: 2px solid #ffeeba; padding: 15px; border-radius: 10px; text-align: center; margin-top: 15px; }
+        .balance-result { font-size: 1.3em; font-weight: bold; margin-top: 5px; }
     </style>
 </head>
 <body>
@@ -57,6 +61,7 @@
                     <div class="data-item">運動消費<br><span id="calories-display" class="data-value" style="color: #16a085;">0</span> kcal</div>
                 </div>
                 <div id="map"></div>
+                <p style="font-size: 0.7em; color: #777; text-align: center;">※地図の表示はPhase 3で修復されます</p>
             </div>
         </div>
 
@@ -73,18 +78,28 @@
                             <button onclick="saveMapKey()" style="background:#3498db; color:white; border:none; border-radius:5px; padding:0 10px; cursor:pointer;">保存</button>
                         </div>
                     </div>
+                    <div class="profile-row"><span>性別:</span> 
+                        <select id="gender-input" onchange="calcAll()"><option value="male">男性</option><option value="female">女性</option></select>
+                    </div>
+                    <div class="profile-row"><span>生年月日:</span> <input type="date" id="dob-input" value="1990-01-01" onchange="calcAll()"></div>
+                    <div class="profile-row"><span>身長(cm):</span> <input type="number" id="height-input" value="170" oninput="calcAll()"></div>
+                    <div class="profile-row"><span>体重(kg):</span> <input type="number" id="weight-input" value="65" oninput="calcAll()"></div>
                     <div class="profile-row"><span>目標モード:</span> 
                         <select id="goal-mode" onchange="calcAll()"><option value="diet">📉 ダイエット</option><option value="keep" selected>⚖️ 健康維持</option><option value="muscle">💪 筋力アップ</option></select>
                     </div>
-                    <div class="profile-row"><span>体重(kg):</span> <input type="number" id="weight-input" value="65" oninput="calcAll()"></div>
-                    <div class="profile-row"><span>身長(cm):</span> <input type="number" id="height-input" value="170" oninput="calcAll()"></div>
                 </details>
 
-                <div style="text-align: center; padding: 10px; background: #eef2f7; border-radius: 10px; margin-bottom: 15px;">
-                    摂取 <span id="bal-in">0</span> - 消費 <span id="bal-out">0</span> = <strong id="balance-result">---</strong>
+                <div style="text-align: center; padding: 10px; background: #eef2f7; border-radius: 10px; margin-bottom: 10px; font-size: 0.9em;">
+                    BMI: <strong id="bmi-display">0.0</strong> ｜ 基礎代謝: <strong id="bmr-display">0</strong> kcal
                 </div>
 
-                <div style="background:#f0f4f8; padding:10px; border-radius:10px; margin-bottom:10px;">
+                <div class="balance-box">
+                    🔥 <strong>今日のカロリーバランス</strong><br>
+                    <small>摂取 <span id="bal-in">0</span> - 消費 <span id="bal-out">0</span></small>
+                    <div id="balance-result-text" class="balance-result">---</div>
+                </div>
+
+                <div style="background:#f0f4f8; padding:10px; border-radius:10px; margin-top:15px; margin-bottom:10px;">
                     <div style="display:flex; gap:5px; margin-bottom:5px;">
                         <input type="text" id="manual-name" placeholder="食品名" style="flex:2;">
                         <select id="manual-meal-type" style="flex:1;"><option value="bf">朝食</option><option value="lu">昼食</option><option value="dn">夕食</option><option value="sn">間食</option></select>
@@ -110,34 +125,41 @@
 
                 <div class="pfc-container">
                     <strong>PFCバランス</strong>
-                    <div id="p-text" style="font-size:0.8em; margin-top:5px;">P 0/0g</div>
+                    <div id="p-text" style="font-size:0.8em; margin-top:10px;">P 0 / 0g</div>
                     <div class="pfc-bar-bg"><div id="p-bar" class="pfc-bar-fg" style="background:#e74c3c;"></div></div>
-                    <div id="f-text" style="font-size:0.8em;">F 0/0g</div>
+                    <div id="f-text" style="font-size:0.8em;">F 0 / 0g</div>
                     <div class="pfc-bar-bg"><div id="f-bar" class="pfc-bar-fg" style="background:#f1c40f;"></div></div>
-                    <div id="c-text" style="font-size:0.8em;">C 0/0g</div>
+                    <div id="c-text" style="font-size:0.8em;">C 0 / 0g</div>
                     <div class="pfc-bar-bg"><div id="c-bar" class="pfc-bar-fg" style="background:#3498db;"></div></div>
+                    <div style="text-align:center; font-size:0.7em; color:#777; margin-top:5px;">目標摂取目安: <span id="target-cal-display">0</span> kcal</div>
                 </div>
+
+                <button class="action-btn save-btn" onclick="saveCurrentData()">💾 今日の記録をすべて保存</button>
             </div>
         </div>
 
         <div id="tab-history" class="main-tab-content">
             <div class="card">
                 <h2>📊 体重推移</h2>
-                <canvas id="healthChart" width="400" height="200"></canvas>
+                <div style="background: white; border: 1px solid #ddd; border-radius: 10px; padding: 5px;">
+                    <canvas id="healthChart"></canvas>
+                </div>
+                <h3 style="font-size: 1em; margin-top: 20px;">🗓️ 過去の履歴</h3>
                 <div id="history-list"></div>
             </div>
         </div>
     </div>
 
     <nav class="bottom-nav">
-        <button class="nav-btn active" onclick="switchMainTab('walk')">🚶‍♂️歩行</button>
-        <button class="nav-btn" onclick="switchMainTab('meal')">⚖️食事</button>
-        <button class="nav-btn" onclick="switchMainTab('history')">📊履歴</button>
+        <button class="nav-btn active" onclick="switchMainTab('walk')"><span>🚶‍♂️</span>歩行</button>
+        <button class="nav-btn" onclick="switchMainTab('meal')"><span>⚖️</span>食事</button>
+        <button class="nav-btn" onclick="switchMainTab('history')"><span>📊</span>履歴</button>
     </nav>
 
     <script>
         let steps = 0;
         let todayFoodLogs = { bf: [], lu: [], dn: [], sn: [] };
+        let myChart = null;
 
         function saveMapKey() {
             const key = document.getElementById('map-api-key').value;
@@ -150,6 +172,7 @@
             document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('tab-' + tabName).classList.add('active');
             event.currentTarget.classList.add('active');
+            if(tabName === 'history') renderGraph();
         }
 
         function clearManualInput() {
@@ -172,7 +195,7 @@
             todayFoodLogs[type].push(item);
             renderLogs();
             calcAll();
-            clearManualInput(); // 【修正点】追加後に自動クリア
+            clearManualInput();
         }
 
         function removeFood(type, id) {
@@ -193,14 +216,135 @@
             });
         }
 
-        // Phase 2で詳細に直しますが、一旦枠組みだけ
         function calcAll() {
-            console.log("計算実行中...");
+            const weight = parseFloat(document.getElementById('weight-input').value) || 0;
+            const height = parseFloat(document.getElementById('height-input').value) || 0;
+            const gender = document.getElementById('gender-input').value;
+            const dob = new Date(document.getElementById('dob-input').value);
+            const mode = document.getElementById('goal-mode').value;
+
+            // 年齢計算
+            let age = 0;
+            if (dob) {
+                const today = new Date();
+                age = today.getFullYear() - dob.getFullYear();
+                if (today.getMonth() < dob.getMonth() || (today.getMonth() === dob.getMonth() && today.getDate() < dob.getDate())) age--;
+            }
+
+            // BMI計算
+            let bmi = 0;
+            if(height > 0) bmi = (weight / Math.pow(height/100, 2)).toFixed(1);
+            document.getElementById('bmi-display').innerText = bmi;
+
+            // 基礎代謝(ハリス・ベネディクト)
+            let bmr = 0;
+            if(weight > 0 && height > 0 && age > 0) {
+                if(gender === 'male') bmr = 13.397 * weight + 4.799 * height - 5.677 * age + 88.362;
+                else bmr = 9.247 * weight + 3.098 * height - 4.33 * age + 447.593;
+            }
+            bmr = Math.round(bmr);
+            document.getElementById('bmr-display').innerText = bmr;
+
+            // 消費カロリー
+            const activeCal = Math.round(steps * weight * 0.0005);
+            document.getElementById('calories-display').innerText = activeCal;
+            document.getElementById('bal-out').innerText = bmr + activeCal;
+
+            // 摂取カロリー合計
+            let tKcal=0, tP=0, tF=0, tC=0, tS=0;
+            Object.values(todayFoodLogs).flat().forEach(i => {
+                tKcal += i.kcal; tP += i.p; tF += i.f; tC += i.c; tS += i.s;
+            });
+            document.getElementById('bal-in').innerText = Math.round(tKcal);
+
+            // カロリーバランス表示
+            const balance = Math.round(tKcal - (bmr + activeCal));
+            const balEl = document.getElementById('balance-result-text');
+            balEl.innerText = (balance > 0 ? "+" : "") + balance + " kcal";
+            balEl.style.color = (balance > 200 || balance < -500) ? "#e74c3c" : "#27ae60";
+
+            // 目標設定
+            let targetCal = bmr + activeCal;
+            if(mode === 'diet') targetCal -= 300;
+            if(mode === 'muscle') targetCal += 300;
+            document.getElementById('target-cal-display').innerText = Math.round(targetCal);
+
+            const targetP = weight * (mode === 'muscle' ? 2.0 : 1.2);
+            const targetF = weight * 0.9;
+            const targetC = Math.max(0, (targetCal - (targetP * 4 + targetF * 9)) / 4);
+
+            const updateBar = (id, cur, tar) => {
+                document.getElementById(id + '-text').innerText = `${id.toUpperCase()} ${cur.toFixed(1)} / ${Math.round(tar)}g`;
+                document.getElementById(id + '-bar').style.width = tar > 0 ? Math.min(100, (cur / tar) * 100) + '%' : '0%';
+            };
+            updateBar('p', tP, targetP); updateBar('f', tF, targetF); updateBar('c', tC, targetC);
+
+            // プロフィール保存
+            localStorage.setItem('user_lite_profile', JSON.stringify({
+                gender, dob: document.getElementById('dob-input').value, weight, height, mode, 
+                logs: todayFoodLogs, lastDate: new Date().toLocaleDateString()
+            }));
+        }
+
+        function saveCurrentData() {
+            let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
+            const date = new Date().toLocaleDateString();
+            const weight = document.getElementById('weight-input').value;
+            const bal = document.getElementById('balance-result-text').innerText;
+            
+            const data = { date, steps, weight, balance: bal };
+            history = [data, ...history.filter(h => h.date !== date)];
+            localStorage.setItem('walkingHistory', JSON.stringify(history));
+            alert("本日の記録を履歴に保存しました！");
+            displayHistory();
+        }
+
+        function displayHistory() {
+            const history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
+            document.getElementById('history-list').innerHTML = history.map(h => `
+                <div class="history-item">
+                    <strong>${h.date}</strong><br>
+                    体重: ${h.weight}kg / 歩数: ${h.steps}歩 / バランス: ${h.balance}
+                </div>
+            `).join('');
+        }
+
+        function renderGraph() {
+            const history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
+            if (history.length === 0) return;
+            const data = [...history].reverse();
+            const ctx = document.getElementById('healthChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(h => h.date),
+                    datasets: [{ label: '体重(kg)', data: data.map(h => h.weight), borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.1)', fill: true, tension: 0.3 }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
         }
 
         window.onload = function() {
+            // 歩数連携（URLパラメータ）
+            const params = new URLSearchParams(window.location.search);
+            steps = parseInt(params.get('y_steps')) || 0;
+            document.getElementById('steps-display').innerText = steps.toLocaleString();
+
+            const saved = JSON.parse(localStorage.getItem('user_lite_profile'));
+            if(saved) {
+                document.getElementById('gender-input').value = saved.gender || 'male';
+                document.getElementById('dob-input').value = saved.dob || '1990-01-01';
+                document.getElementById('weight-input').value = saved.weight || 65;
+                document.getElementById('height-input').value = saved.height || 170;
+                document.getElementById('goal-mode').value = saved.mode || 'keep';
+                if(saved.lastDate === new Date().toLocaleDateString()) todayFoodLogs = saved.logs || todayFoodLogs;
+            }
             document.getElementById('map-api-key').value = localStorage.getItem('map_api_key') || "";
-            // 地図の初期化などはPhase 3で
+            
+            renderLogs();
+            calcAll();
+            displayHistory();
         };
     </script>
 </body>
