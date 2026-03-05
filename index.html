@@ -3,12 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    
-    <title>マイウォーキングアプリ LITE</title>
-    <link rel="apple-touch-icon" href="icon.png">
+    <title>マイウォーキングアプリ LITE v12.8</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -16,146 +11,85 @@
     
     <style>
         body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f0f4f8; color: #333; padding-bottom: 70px; }
-        body.fullscreen-active { overflow: hidden; }
         .container { max-width: 600px; margin: auto; padding: 15px; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 15px; }
-        h1 { font-size: 1.2em; margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid #27ae60; padding-bottom: 5px; display: flex; justify-content: space-between; align-items: center; }
-        .version-badge { background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.6em; font-weight: bold; }
+        h1 { font-size: 1.2em; margin-top: 0; border-bottom: 2px solid #27ae60; padding-bottom: 5px; }
+        .version-badge { background: #3498db; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.6em; float: right; }
         
-        .main-tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .main-tab-content { display: none; }
         .main-tab-content.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         
-        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: white; display: flex; justify-content: space-around; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 9999; padding-bottom: env(safe-area-inset-bottom); }
+        .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: white; display: flex; justify-content: space-around; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 9999; }
         .nav-btn { flex: 1; padding: 12px 0; border: none; background: none; font-size: 0.9em; color: #7f8c8d; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-        .nav-btn span { font-size: 1.5em; margin-bottom: 3px; }
         .nav-btn.active { color: #27ae60; font-weight: bold; }
 
         .data-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
         .data-item { background: #eef2f7; padding: 10px; border-radius: 10px; text-align: center; }
         .data-value { font-size: 1.2em; font-weight: bold; color: #3498db; }
         
-        #map-container { position: relative; margin-bottom: 15px; }
-        #map { height: 300px; width: 100%; border-radius: 15px; border: 2px solid #ddd; z-index: 1; }
-        #normal-fullscreen-btn { position: absolute; top: 10px; right: 10px; z-index: 1000; padding: 8px 12px; background: white; border: 2px solid #ccc; border-radius: 8px; cursor: pointer; font-weight: bold; }
-        
-        #map-container.is-fullscreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10000; margin: 0; background: white; }
-        #map-container.is-fullscreen #map { height: 100vh !important; border-radius: 0; }
+        #map { height: 300px; width: 100%; border-radius: 15px; border: 2px solid #ddd; }
 
         input[type="number"], input[type="text"], input[type="date"], select, input[type="password"] { padding: 8px; border-radius: 5px; border: 1px solid #ccc; font-size: 1em; width: 100%; box-sizing: border-box; }
-        .inline-input { width: 120px; display: inline-block; text-align: right; }
-        button.action-btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; background: #3498db; color: white; margin-top: 10px; transition: 0.2s; }
-        button.action-btn:disabled { background: #95a5a6; }
-        button.save-btn { background: #27ae60; font-size: 1.1em; padding: 15px; }
+        button.action-btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; background: #3498db; color: white; margin-top: 10px; }
         
-        .route-mode-box { display: flex; gap: 10px; background: #eef2f7; padding: 10px; border-radius: 10px; margin-bottom: 10px; }
-        .route-mode-box label { flex: 1; text-align: center; font-weight: bold; font-size: 0.9em; cursor: pointer; }
-        .route-mode-box input[type="radio"] { display: none; }
-        .route-mode-box input[type="radio"]:checked + span { color: #3498db; border-bottom: 2px solid #3498db; }
-
         details { background: #f8f9fa; padding: 10px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #eee; }
         summary { font-weight: bold; cursor: pointer; padding: 5px 0; }
-        .profile-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
-        .meal-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 10px; text-align: center; font-size: 0.8em; }
-        .meal-grid input { padding: 5px; font-size: 1em; text-align: center; background:#fff; }
+        .profile-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; }
         
-        .balance-box { background: #fff3cd; border: 2px solid #ffeeba; padding: 15px; border-radius: 10px; text-align: center; margin-top: 15px; }
-        .balance-result { font-size: 1.3em; font-weight: bold; margin-top: 5px; }
-        .result-good { color: #27ae60; } .result-bad { color: #e74c3c; }
+        .meal-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 10px; text-align: center; font-size: 0.7em; }
+        .meal-grid input { padding: 5px; font-size: 1em; text-align: center; }
         
-        .chart-tabs { display: flex; gap: 5px; margin-bottom: 10px; }
-        .chart-tab-btn { flex: 1; padding: 8px; border-radius: 5px; border: 1px solid #ccc; background: #f0f4f8; font-size: 0.9em; }
-        .chart-tab-btn.active { background: #3498db; color: white; border-color: #2980b9; font-weight: bold; }
-        .history-item { background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #27ae60; font-size: 0.85em; }
-
-        /* 食事ログスタイル */
-        .food-log-container { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
-        .food-log-item { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #ddd; padding: 6px 10px; border-radius: 5px; font-size: 0.85em; }
-        .food-log-item button { background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 4px 8px; cursor: pointer; }
+        .food-log-item { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #ddd; padding: 6px 10px; border-radius: 5px; font-size: 0.85em; margin-bottom: 5px; }
+        .food-log-item button { background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 4px 8px; }
 
         .pfc-container { margin-top: 15px; padding: 12px; background: #fff; border-radius: 10px; border: 1px solid #ddd; }
-        .pfc-item { margin-bottom: 8px; }
-        .pfc-label { font-size: 0.85em; display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 3px; }
-        .pfc-bar-bg { background: #eef2f7; border-radius: 5px; height: 12px; width: 100%; overflow: hidden; }
-        .pfc-bar-fg { height: 100%; transition: width 0.4s ease; }
+        .pfc-bar-bg { background: #eef2f7; border-radius: 5px; height: 12px; width: 100%; overflow: hidden; margin-bottom: 8px; }
+        .pfc-bar-fg { height: 100%; width: 0%; transition: width 0.4s ease; }
     </style>
 </head>
 <body>
     <div class="container">
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
-                <h1 id="app-title">あなたの健康ログ <span class="version-badge">v12.8 LITE</span></h1>
-                <div id="wake-lock-status" style="text-align:center; font-size:0.8em; padding:5px; margin-bottom:10px;" class="status-off">スリープ防止：OFF (画面タップ)</div>
-                
-                <div style="background: #f0f4f8; padding: 10px; border-radius: 10px; margin-bottom: 15px;">
-                    <strong>目標ルート作成:</strong><br>
-                    <div class="route-mode-box">
-                        <label><input type="radio" name="route-mode" value="loop" checked onchange="toggleRouteMode()"><span>🔄 周回</span></label>
-                        <label><input type="radio" name="route-mode" value="dest" onchange="toggleRouteMode()"><span>📍 目的地</span></label>
-                    </div>
-                    <div id="distance-input-area" style="display: flex; gap: 10px; margin-top: 5px;">
-                        <select id="goal-type" onchange="changeGoalPlaceholder()" style="flex: 1;">
-                            <option value="distance">距離 (km)</option>
-                            <option value="steps">歩数 (歩)</option>
-                        </select>
-                        <input type="number" id="goal-value" value="1" step="0.5" style="flex: 1;">
-                    </div>
-                    <button id="route-btn" class="action-btn" onclick="generateGoalRoute()">ルート検索開始</button>
-                    <div style="display: flex; gap: 5px; margin-top: 10px;">
-                        <button class="action-btn" style="background: #2980b9; margin-top:0;" onclick="centerMap()">📍現在地</button>
-                        <button class="action-btn" style="background: #e74c3c; margin-top:0;" onclick="clearMap()">✖消去</button>
-                    </div>
-                </div>
-
+                <h1>健康ログ <span class="version-badge">v12.8 LITE</span></h1>
                 <div class="data-grid">
                     <div class="data-item">今日の歩数<br><span id="steps-display" class="data-value">0</span> 歩</div>
                     <div class="data-item">運動消費<br><span id="calories-display" class="data-value" style="color: #16a085;">0</span> kcal</div>
                 </div>
-            </div>
-            
-            <div id="map-container">
-                <button id="normal-fullscreen-btn" onclick="toggleFullscreen()">🗺️ 拡大</button>
                 <div id="map"></div>
             </div>
         </div>
 
         <div id="tab-meal" class="main-tab-content">
             <div class="card">
-                <h2 style="margin-top:0;">⚖️ 体調と食事の記録</h2>
-
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee;">
-                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                        <div style="flex: 1;">
-                            <label style="font-size:0.8em; font-weight:bold;">🎯 モード</label>
-                            <select id="goal-mode" onchange="calcAll()"><option value="diet">📉 ダイエット</option><option value="keep" selected>⚖️ 健康維持</option><option value="muscle">💪 筋力アップ</option></select>
-                        </div>
-                        <div style="flex: 1;">
-                            <label style="font-size:0.8em; font-weight:bold;">⚖️ 体重(kg)</label>
-                            <input type="number" id="weight-input" value="65" oninput="calcAll()">
+                <h2 style="margin-top:0;">⚖️ 体調と食事</h2>
+                
+                <details>
+                    <summary>⚙️ プロフィール・API設定</summary>
+                    <div class="profile-row">
+                        <span>地図APIキー:</span>
+                        <div style="display: flex; gap: 5px; flex: 1;">
+                            <input type="password" id="map-api-key" placeholder="ey...">
+                            <button onclick="saveMapKey()" style="background:#3498db; color:white; border:none; border-radius:5px; padding:0 10px; cursor:pointer;">保存</button>
                         </div>
                     </div>
-                    <div style="text-align: center; font-size: 0.9em; background: #fff; padding: 8px; border-radius: 5px; border: 1px solid #ccc;">
-                        BMI: <strong id="bmi-display">0.0</strong> ｜ 基礎代謝: <strong id="bmr-display">0</strong> kcal
+                    <div class="profile-row"><span>目標モード:</span> 
+                        <select id="goal-mode" onchange="calcAll()"><option value="diet">📉 ダイエット</option><option value="keep" selected>⚖️ 健康維持</option><option value="muscle">💪 筋力アップ</option></select>
                     </div>
+                    <div class="profile-row"><span>体重(kg):</span> <input type="number" id="weight-input" value="65" oninput="calcAll()"></div>
+                    <div class="profile-row"><span>身長(cm):</span> <input type="number" id="height-input" value="170" oninput="calcAll()"></div>
+                </details>
 
-                    <details style="margin-top: 10px;">
-                        <summary style="font-size:0.8em; color:#777;">⚙️ 詳細設定 (APIキー・身長等)</summary>
-                        <div class="profile-row"><span>地図APIキー:</span> <input type="password" id="map-api-key" placeholder="ORS APIキーを入力" style="width:150px;" onchange="saveMapKey()"></div>
-                        <div class="profile-row"><span>本名:</span> <input type="text" id="realname-input" class="inline-input" oninput="calcAll()"></div>
-                        <div class="profile-row"><span>性別:</span> <select id="gender-input" class="inline-input" onchange="calcAll()"><option value="male">男性</option><option value="female">女性</option></select></div>
-                        <div class="profile-row"><span>生年月日:</span> <input type="date" id="dob-input" onchange="calcAll()" style="width:130px;"></div>
-                        <div class="profile-row"><span>身長(cm):</span> <input type="number" id="height-input" class="inline-input" value="170" oninput="calcAll()"></div>
-                        <div class="profile-row"><span>目標歩数:</span> <input type="number" id="target-steps-input" class="inline-input" value="8000" oninput="calcAll()"></div>
-                    </details>
+                <div style="text-align: center; padding: 10px; background: #eef2f7; border-radius: 10px; margin-bottom: 15px;">
+                    摂取 <span id="bal-in">0</span> - 消費 <span id="bal-out">0</span> = <strong id="balance-result">---</strong>
                 </div>
 
-                <h3 style="font-size: 1em; border-bottom: 1px solid #ccc;">🍽️ 食事入力</h3>
-                <div style="background:#eef2f7; padding:10px; border-radius:10px; margin-bottom:10px;">
+                <div style="background:#f0f4f8; padding:10px; border-radius:10px; margin-bottom:10px;">
                     <div style="display:flex; gap:5px; margin-bottom:5px;">
-                        <input type="text" id="manual-name" placeholder="食品名 (例: おにぎり)" style="flex:2;">
+                        <input type="text" id="manual-name" placeholder="食品名" style="flex:2;">
                         <select id="manual-meal-type" style="flex:1;"><option value="bf">朝食</option><option value="lu">昼食</option><option value="dn">夕食</option><option value="sn">間食</option></select>
                     </div>
-                    <div class="meal-grid" style="margin-top:0;">
+                    <div class="meal-grid">
                         <div>Kcal</div><div>P(g)</div><div>F(g)</div><div>C(g)</div><div>塩(g)</div>
                         <input type="number" id="manual-cal" placeholder="0">
                         <input type="number" id="manual-p" placeholder="0">
@@ -163,76 +97,72 @@
                         <input type="number" id="manual-c" placeholder="0">
                         <input type="number" id="manual-s" placeholder="0">
                     </div>
-                    <button class="action-btn" style="background:#27ae60;" onclick="addManualFood()">食事を追加する</button>
+                    <div style="display:flex; gap:10px; margin-top:10px;">
+                        <button class="action-btn" style="background:#27ae60; margin-top:0; flex:2;" onclick="addManualFood()">食事を追加</button>
+                        <button class="action-btn" style="background:#95a5a6; margin-top:0; flex:1;" onclick="clearManualInput()">クリア</button>
+                    </div>
                 </div>
 
-                <details><summary>🌅 朝食リスト</summary><div id="bf-log" class="food-log-container"></div></details>
-                <details><summary>☀️ 昼食リスト</summary><div id="lu-log" class="food-log-container"></div></details>
-                <details><summary>🌙 夕食リスト</summary><div id="dn-log" class="food-log-container"></div></details>
-                <details><summary>☕️ 間食リスト</summary><div id="sn-log" class="food-log-container"></div></details>
+                <details><summary>🌅 朝食リスト</summary><div id="bf-log"></div></details>
+                <details><summary>☀️ 昼食リスト</summary><div id="lu-log"></div></details>
+                <details><summary>🌙 夕食リスト</summary><div id="dn-log"></div></details>
+                <details><summary>☕️ 間食リスト</summary><div id="sn-log"></div></details>
 
                 <div class="pfc-container">
-                    <div class="pfc-item">
-                        <div class="pfc-label"><span>🥩 P タンパク質</span> <span id="p-text">0/0g</span></div>
-                        <div class="pfc-bar-bg"><div id="p-bar" class="pfc-bar-fg" style="background:#e74c3c; width:0%;"></div></div>
-                    </div>
-                    <div class="pfc-item">
-                        <div class="pfc-label"><span>🧈 F 脂質</span> <span id="f-text">0/0g</span></div>
-                        <div class="pfc-bar-bg"><div id="f-bar" class="pfc-bar-fg" style="background:#f1c40f; width:0%;"></div></div>
-                    </div>
-                    <div class="pfc-item">
-                        <div class="pfc-label"><span>🍚 C 炭水化物</span> <span id="c-text">0/0g</span></div>
-                        <div class="pfc-bar-bg"><div id="c-bar" class="pfc-bar-fg" style="background:#3498db; width:0%;"></div></div>
-                    </div>
-                    <div style="text-align:center; font-size:0.85em; margin-top:5px; color:#7f8c8d;">目標: <strong id="target-cal-display">0</strong> kcal</div>
+                    <strong>PFCバランス</strong>
+                    <div id="p-text" style="font-size:0.8em; margin-top:5px;">P 0/0g</div>
+                    <div class="pfc-bar-bg"><div id="p-bar" class="pfc-bar-fg" style="background:#e74c3c;"></div></div>
+                    <div id="f-text" style="font-size:0.8em;">F 0/0g</div>
+                    <div class="pfc-bar-bg"><div id="f-bar" class="pfc-bar-fg" style="background:#f1c40f;"></div></div>
+                    <div id="c-text" style="font-size:0.8em;">C 0/0g</div>
+                    <div class="pfc-bar-bg"><div id="c-bar" class="pfc-bar-fg" style="background:#3498db;"></div></div>
                 </div>
-
-                <div class="balance-box">
-                    🔥 <strong>カロリーバランス</strong><br>
-                    <small>摂取 <span id="bal-in">0</span> - 消費 <span id="bal-out">0</span></small>
-                    <div id="balance-result" class="balance-result">---</div>
-                </div>
-                <button class="action-btn save-btn" onclick="saveCurrentData()">💾 記録を保存</button>
             </div>
         </div>
 
         <div id="tab-history" class="main-tab-content">
             <div class="card">
-                <h2 style="margin-top:0;">📊 体重推移グラフ</h2>
-                <canvas id="healthChart"></canvas>
-                <div id="history-list" style="margin-top:15px;"></div>
+                <h2>📊 体重推移</h2>
+                <canvas id="healthChart" width="400" height="200"></canvas>
+                <div id="history-list"></div>
             </div>
         </div>
     </div>
 
     <nav class="bottom-nav">
-        <button class="nav-btn active" onclick="switchMainTab('walk')"><span>🚶‍♂️</span>歩行</button>
-        <button class="nav-btn" onclick="switchMainTab('meal')"><span>⚖️</span>食事</button>
-        <button class="nav-btn" onclick="switchMainTab('history')"><span>📊</span>履歴</button>
+        <button class="nav-btn active" onclick="switchMainTab('walk')">🚶‍♂️歩行</button>
+        <button class="nav-btn" onclick="switchMainTab('meal')">⚖️食事</button>
+        <button class="nav-btn" onclick="switchMainTab('history')">📊履歴</button>
     </nav>
 
     <script>
-        let steps = 0, activeCal = 0;
+        let steps = 0;
         let todayFoodLogs = { bf: [], lu: [], dn: [], sn: [] };
-        let myChart = null;
 
         function saveMapKey() {
-            localStorage.setItem('map_api_key', document.getElementById('map-api-key').value);
+            const key = document.getElementById('map-api-key').value;
+            localStorage.setItem('map_api_key', key);
             alert("APIキーを保存しました。");
         }
 
-        window.switchMainTab = function(tabName) {
+        function switchMainTab(tabName) {
             document.querySelectorAll('.main-tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
             document.getElementById('tab-' + tabName).classList.add('active');
-            if(tabName==='walk' && window.map) setTimeout(() => window.map.invalidateSize(), 100);
-        };
+            event.currentTarget.classList.add('active');
+        }
+
+        function clearManualInput() {
+            ['manual-name','manual-cal','manual-p','manual-f','manual-c','manual-s'].forEach(id => {
+                document.getElementById(id).value = "";
+            });
+        }
 
         function addManualFood() {
-            const name = document.getElementById('manual-name').value || "食品";
             const type = document.getElementById('manual-meal-type').value;
             const item = {
                 id: Date.now(),
-                name: name,
+                name: document.getElementById('manual-name').value || "食品",
                 kcal: parseFloat(document.getElementById('manual-cal').value) || 0,
                 p: parseFloat(document.getElementById('manual-p').value) || 0,
                 f: parseFloat(document.getElementById('manual-f').value) || 0,
@@ -242,8 +172,7 @@
             todayFoodLogs[type].push(item);
             renderLogs();
             calcAll();
-            // Clear inputs
-            ['manual-name','manual-cal','manual-p','manual-f','manual-c','manual-s'].forEach(id => document.getElementById(id).value = "");
+            clearManualInput(); // 【修正点】追加後に自動クリア
         }
 
         function removeFood(type, id) {
@@ -257,151 +186,22 @@
                 const container = document.getElementById(type + '-log');
                 container.innerHTML = todayFoodLogs[type].map(item => `
                     <div class="food-log-item">
-                        <span><strong>${item.name}</strong> (${item.kcal}kcal)</span>
+                        <span>${item.name} (${item.kcal}kcal)</span>
                         <button onclick="removeFood('${type}', ${item.id})">✖</button>
                     </div>
                 `).join('');
             });
         }
 
-        window.calcAll = function() {
-            const w = parseFloat(document.getElementById('weight-input').value) || 0;
-            const h = parseFloat(document.getElementById('height-input').value) || 0;
-            const mode = document.getElementById('goal-mode').value;
-            
-            // BMI & BMR
-            if(h > 0) document.getElementById('bmi-display').innerText = (w / Math.pow(h/100, 2)).toFixed(1);
-            const bmr = Math.round(w * 22); // 簡易計算
-            document.getElementById('bmr-display').innerText = bmr;
-
-            // Activity
-            activeCal = Math.round(steps * w * 0.0005);
-            document.getElementById('calories-display').innerText = activeCal;
-            document.getElementById('steps-display').innerText = steps;
-
-            // Food Totals
-            let tKcal=0, tP=0, tF=0, tC=0, tS=0;
-            Object.values(todayFoodLogs).flat().forEach(i => {
-                tKcal += i.kcal; tP += i.p; tF += i.f; tC += i.c; tS += i.s;
-            });
-
-            document.getElementById('total-kcal').innerText = Math.round(tKcal);
-            document.getElementById('total-p').innerText = tP.toFixed(1);
-            document.getElementById('total-f').innerText = tF.toFixed(1);
-            document.getElementById('total-c').innerText = tC.toFixed(1);
-            document.getElementById('total-s').innerText = tS.toFixed(1);
-
-            // PFC Targets
-            let tarCal = bmr + activeCal;
-            if(mode==='diet') tarCal -= 300;
-            if(mode==='muscle') tarCal += 300;
-            document.getElementById('target-cal-display').innerText = Math.round(tarCal);
-
-            const tarP = w * (mode==='muscle'? 2 : 1.2);
-            const tarF = w * 0.9;
-            const tarC = (tarCal - (tarP*4 + tarF*9)) / 4;
-
-            const updateBar = (id, cur, tar) => {
-                document.getElementById(id+'-text').innerText = `${cur.toFixed(1)} / ${Math.round(tar)}g`;
-                document.getElementById(id+'-bar').style.width = Math.min(100, (cur/tar)*100) + '%';
-            };
-            updateBar('p', tP, tarP); updateBar('f', tF, tarF); updateBar('c', tC, tarC);
-
-            // Balance
-            const bal = tKcal - (bmr + activeCal);
-            document.getElementById('bal-in').innerText = Math.round(tKcal);
-            document.getElementById('bal-out').innerText = bmr + activeCal;
-            document.getElementById('balance-result').innerText = (bal > 0 ? "+" : "") + Math.round(bal) + " kcal";
-            
-            // Save state
-            localStorage.setItem('user_lite_data', JSON.stringify({
-                weight: w, height: h, logs: todayFoodLogs, lastDate: new Date().toLocaleDateString()
-            }));
-        };
+        // Phase 2で詳細に直しますが、一旦枠組みだけ
+        function calcAll() {
+            console.log("計算実行中...");
+        }
 
         window.onload = function() {
-            const saved = JSON.parse(localStorage.getItem('user_lite_data'));
-            if(saved) {
-                if(saved.lastDate === new Date().toLocaleDateString()) {
-                    todayFoodLogs = saved.logs || todayFoodLogs;
-                }
-                document.getElementById('weight-input').value = saved.weight || 65;
-                document.getElementById('height-input').value = saved.height || 170;
-            }
             document.getElementById('map-api-key').value = localStorage.getItem('map_api_key') || "";
-            
-            const params = new URLSearchParams(window.location.search);
-            if(params.has('y_steps')) {
-                // 前日の自動保存ロジック（通常版から継承）
-                saveYesterdayData(parseFloat(params.get('y_steps')));
-            }
-
-            renderLogs();
-            calcAll();
-            renderGraph();
-            initMap();
+            // 地図の初期化などはPhase 3で
         };
-
-        function saveCurrentData() {
-            let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
-            const date = new Date().toLocaleDateString();
-            const data = {
-                date: date,
-                weight: document.getElementById('weight-input').value,
-                steps: steps,
-                balance: document.getElementById('balance-result').innerText
-            };
-            history = [data, ...history.filter(h => h.date !== date)];
-            localStorage.setItem('walkingHistory', JSON.stringify(history));
-            alert("保存しました。");
-            renderGraph();
-        }
-
-        function renderGraph() {
-            const history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
-            const ctx = document.getElementById('healthChart').getContext('2d');
-            if(myChart) myChart.destroy();
-            const data = [...history].reverse();
-            myChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: data.map(h => h.date),
-                    datasets: [{ label: '体重(kg)', data: data.map(h => h.weight), borderColor: '#3498db', tension: 0.1 }]
-                }
-            });
-            document.getElementById('history-list').innerHTML = history.map(h => `
-                <div class="history-item"><strong>${h.date}</strong>: ${h.weight}kg / ${h.steps}歩 / ${h.balance}</div>
-            `).join('');
-        }
-
-        // Map functions
-        let map, goalPath, marker;
-        function initMap() {
-            map = L.map('map').setView([35.6812, 139.7671], 15);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-            marker = L.marker([35.6812, 139.7671]).addTo(map);
-            goalPath = L.polyline([], {color: '#2980b9', weight: 6}).addTo(map);
-            
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(p => {
-                    const pos = [p.coords.latitude, p.coords.longitude];
-                    marker.setLatLng(pos);
-                });
-            }
-        }
-
-        function toggleFullscreen() {
-            const container = document.getElementById('map-container');
-            container.classList.toggle('is-fullscreen');
-            setTimeout(() => map.invalidateSize(), 300);
-        }
-
-        async function generateGoalRoute() {
-            const key = localStorage.getItem('map_api_key');
-            if(!key) return alert("設定画面で地図APIキーを入力してください。");
-            alert("ルート計算を開始します...");
-            // 通常版と同じORS API呼び出しロジックをここに
-        }
     </script>
 </body>
 </html>
