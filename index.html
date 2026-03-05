@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マイウォーキングアプリ LITE v13.0</title>
+    <title>マイウォーキングアプリ LITE v13.1</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -49,7 +49,7 @@
     <div class="container">
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
-                <h1>健康ログ <span class="version-badge">v13.0 LITE</span></h1>
+                <h1>健康ログ <span class="version-badge">v13.1 LITE</span></h1>
                 <div style="background: #f0f4f8; padding: 10px; border-radius: 10px; margin-bottom: 15px;">
                     <strong>目標ルート作成:</strong><br>
                     <div class="route-mode-box">
@@ -270,7 +270,7 @@
             const data = { date, steps, weight, balance: document.getElementById('balance-result-text').innerText };
             history = [data, ...history.filter(h => h.date !== date)];
             localStorage.setItem('walkingHistory', JSON.stringify(history));
-            alert("保存しました！"); displayHistory();
+            alert("保存しました！"); displayHistory(); renderGraph();
         }
 
         function displayHistory() {
@@ -334,39 +334,28 @@
             btn.innerText = "検索中..."; btn.disabled = true;
 
             try {
-                let url = 'https://api.openrouteservice.org/v2/directions/foot-hiking/geojson';
-                let body = { 
-                    coordinates: [[currentLng, currentLat]],
-                    units: "m"
-                };
-
-                // 周回ルート専用の設定
+                let body = { coordinates: [[currentLng, currentLat]] };
                 if (mode === 'loop') {
                     let distMeters = (type === 'distance' ? value : value * 0.0007) * 1000;
-                    body.options = { 
-                        round_trip: { 
-                            length: Math.round(distMeters), 
-                            points: 3, 
-                            seed: Math.floor(Math.random()*100) 
-                        } 
-                    };
+                    body.options = { round_trip: { length: Math.round(distMeters), points: 3, seed: Math.floor(Math.random()*100) } };
                 } else {
                     if (!destMarker) throw new Error("目的地を地図上でタップしてください");
                     body.coordinates.push([destMarker.getLatLng().lng, destMarker.getLatLng().lat]);
                 }
 
-                const res = await fetch(url, {
+                const res = await fetch('https://api.openrouteservice.org/v2/directions/foot-hiking/geojson', {
                     method: 'POST',
                     headers: { 
-                        'Authorization': key, 
-                        'Content-Type': 'application/json; charset=utf-8' 
+                        'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8', 
+                        'Content-Type': 'application/json',
+                        'Authorization': key 
                     },
                     body: JSON.stringify(body)
                 });
 
                 if (!res.ok) {
-                    const errorDetail = await res.json();
-                    throw new Error(errorDetail.error?.message || "API通信エラー");
+                    const err = await res.json();
+                    throw new Error(err.error?.message || "通信エラー (Load failed)");
                 }
 
                 const data = await res.json();
