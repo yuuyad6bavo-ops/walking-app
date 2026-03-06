@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マイウォーキングアプリ LITE v13.3</title>
+    <title>マイウォーキングアプリ LITE v13.4.1</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -67,7 +67,7 @@
     <div class="container">
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
-                <h1>健康ログ <span class="version-badge">v13.3 LITE</span></h1>
+                <h1>健康ログ <span class="version-badge">v13.4.1 LITE</span></h1>
                 <div style="background: #f0f4f8; padding: 10px; border-radius: 10px; margin-bottom: 15px;">
                     <strong>目標ルート作成:</strong><br>
                     <div class="route-mode-box">
@@ -185,7 +185,7 @@
     </nav>
 
     <script>
-        let steps = 0; // LITE版の「今日の歩数」は手動や別アプリ管理想定のため基本0スタート
+        let steps = 0; // 今日の歩数
         let todayFoodLogs = { bf: [], lu: [], dn: [], sn: [] };
         let myChart = null;
         
@@ -302,7 +302,6 @@
             }));
         }
 
-        // 今日のデータを手動保存する処理
         function saveCurrentData() {
             let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
             const date = new Date().toLocaleDateString();
@@ -315,29 +314,24 @@
             displayHistory(); renderGraph();
         }
 
-        // ★ 修正箇所：昨日の歩数を自動で裏側保存する処理
         function saveYesterdayData(ySteps) {
             let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
-            
-            // 昨日の日付を計算
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
             const yDateStr = yesterday.toLocaleDateString();
-
-            // 現在の体重を取得
             const weight = document.getElementById('weight-input').value || 65;
             
             const existingIndex = history.findIndex(h => h.date === yDateStr);
             if (existingIndex !== -1) {
-                history[existingIndex].steps = ySteps; // 歩数だけ上書き
+                history[existingIndex].steps = ySteps;
             } else {
                 history.unshift({ date: yDateStr, steps: ySteps, weight: weight, balance: "---" });
             }
             
-            // 日付順に並び替え
             history.sort((a, b) => new Date(b.date) - new Date(a.date));
             localStorage.setItem('walkingHistory', JSON.stringify(history));
-            alert(`ショートカット連携完了：\n昨日の歩数（${ySteps}歩）を履歴に自動保存しました！`);
+            
+            // alert(`ショートカット連携完了：\n昨日の歩数（${ySteps}歩）を履歴に自動保存しました！`);
         }
 
         function displayHistory() {
@@ -508,7 +502,6 @@
         }
 
         window.onload = function() {
-            // プロフィールの読み込み
             const saved = JSON.parse(localStorage.getItem('user_lite_profile'));
             if(saved) {
                 document.getElementById('gender-input').value = saved.gender || 'male';
@@ -520,17 +513,28 @@
             }
             document.getElementById('map-api-key').value = localStorage.getItem('map_api_key') || "";
 
-            // ★ 修正箇所：ショートカットからの連携（昨日の歩数）
+            // ★ 修正箇所：現在のショートカットURL（steps= と y_steps=）に完全対応
             const params = new URLSearchParams(window.location.search);
+            let urlHasParams = false;
+
+            // ① 昨日の歩数があれば履歴に保存
             if(params.has('y_steps')) {
                 const ySteps = parseInt(params.get('y_steps')) || 0;
                 saveYesterdayData(ySteps);
-                
-                // 処理が終わったらURLからパラメータを消去してリロード時のバグを防ぐ
+                urlHasParams = true;
+            }
+
+            // ② 今日の歩数 (steps) があれば変数にセットして画面に表示
+            if(params.has('steps')) {
+                steps = parseInt(params.get('steps')) || 0;
+                document.getElementById('steps-display').innerText = steps.toLocaleString();
+                urlHasParams = true;
+            }
+
+            // 処理後、URLを綺麗に掃除する（リロード対策）
+            if (urlHasParams) {
                 window.history.replaceState(null, '', window.location.pathname);
             }
-            
-            document.getElementById('steps-display').innerText = steps.toLocaleString();
 
             renderLogs(); calcAll(); displayHistory(); initMap();
         };
