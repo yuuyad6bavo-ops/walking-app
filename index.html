@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マイウォーキングアプリ LITE v13.4.1</title>
+    <title>マイウォーキングアプリ 通常版 v13.5</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -67,7 +67,7 @@
     <div class="container">
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
-                <h1>健康ログ <span class="version-badge">v13.4.1 LITE</span></h1>
+                <h1>健康ログ <span class="version-badge">v13.5 通常版</span></h1>
                 <div style="background: #f0f4f8; padding: 10px; border-radius: 10px; margin-bottom: 15px;">
                     <strong>目標ルート作成:</strong><br>
                     <div class="route-mode-box">
@@ -185,7 +185,7 @@
     </nav>
 
     <script>
-        let steps = 0; // 今日の歩数
+        let steps = 0; 
         let todayFoodLogs = { bf: [], lu: [], dn: [], sn: [] };
         let myChart = null;
         
@@ -297,11 +297,16 @@
             };
             updateBar('p', tP, targetP); updateBar('f', tF, targetF); updateBar('c', tC, targetC);
 
+            // ローカルストレージ内のプロフィール・状態を更新（過去のデータ復元用も兼ねる）
+            // ※データ保護のためキー名は user_lite_profile を維持しています
             localStorage.setItem('user_lite_profile', JSON.stringify({
-                gender, dob: dobValue, weight, height, mode, logs: todayFoodLogs, lastDate: new Date().toLocaleDateString()
+                gender, dob: dobValue, weight, height, mode, logs: todayFoodLogs, 
+                steps: steps, 
+                lastDate: new Date().toLocaleDateString()
             }));
         }
 
+        // 手動保存ボタン
         function saveCurrentData() {
             let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
             const date = new Date().toLocaleDateString();
@@ -314,24 +319,61 @@
             displayHistory(); renderGraph();
         }
 
-        function saveYesterdayData(ySteps) {
+        // ★ 完全自動保存ロジック（日付をまたいだ時の過去データ精算）
+        function performAutoSave(dateStr, stepCount, logs, profile) {
             let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            const yDateStr = yesterday.toLocaleDateString();
-            const weight = document.getElementById('weight-input').value || 65;
-            
-            const existingIndex = history.findIndex(h => h.date === yDateStr);
+            // すでに同じ日付があれば上書きのために削除
+            history = history.filter(h => h.date !== dateStr); 
+
+            const weight = parseFloat(profile.weight) || 65;
+            const height = parseFloat(profile.height) || 170;
+            const gender = profile.gender || 'male';
+            const dobValue = profile.dob || '1990-01-01';
+
+            let age = 30;
+            if (dobValue) {
+                const dob = new Date(dobValue);
+                const targetDate = new Date(dateStr);
+                age = targetDate.getFullYear() - dob.getFullYear();
+                if (targetDate.getMonth() < dob.getMonth() || (targetDate.getMonth() === dob.getMonth() && targetDate.getDate() < dob.getDate())) age--;
+            }
+
+            let bmr = 0;
+            if(weight > 0 && height > 0) {
+                if(gender === 'male') bmr = 13.397 * weight + 4.799 * height - 5.677 * age + 88.362;
+                else bmr = 9.247 * weight + 3.098 * height - 4.33 * age + 447.593;
+            }
+            bmr = Math.max(0, Math.round(bmr));
+
+            const activeCal = Math.round(stepCount * weight * 0.0005);
+            let tKcal = 0;
+            if(logs) {
+                Object.values(logs).flat().forEach(i => { tKcal += i.kcal; });
+            }
+
+            const balanceNum = Math.round(tKcal - (bmr + activeCal));
+            const balanceStr = (balanceNum > 0 ? "+" : "") + balanceNum + " kcal";
+
+            history.unshift({ date: dateStr, steps: stepCount, weight: weight, balance: balanceStr });
+            history.sort((a, b) => new Date(b.date) - new Date(a.date));
+            localStorage.setItem('walkingHistory', JSON.stringify(history));
+        }
+
+        // 昨日の歩数だけを強制上書き（何日かぶりに開いた時用）
+        function forceUpdateYesterdaySteps(ySteps, profile) {
+            let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
+            const yesterdayStr = new Date(Date.now() - 86400000).toLocaleDateString();
+
+            const existingIndex = history.findIndex(h => h.date === yesterdayStr);
             if (existingIndex !== -1) {
                 history[existingIndex].steps = ySteps;
             } else {
-                history.unshift({ date: yDateStr, steps: ySteps, weight: weight, balance: "---" });
+                const weight = profile ? (parseFloat(profile.weight) || 65) : 65;
+                history.unshift({ date: yesterdayStr, steps: ySteps, weight: weight, balance: "---" });
             }
-            
+
             history.sort((a, b) => new Date(b.date) - new Date(a.date));
             localStorage.setItem('walkingHistory', JSON.stringify(history));
-            
-            // alert(`ショートカット連携完了：\n昨日の歩数（${ySteps}歩）を履歴に自動保存しました！`);
         }
 
         function displayHistory() {
@@ -502,40 +544,74 @@
         }
 
         window.onload = function() {
-            const saved = JSON.parse(localStorage.getItem('user_lite_profile'));
-            if(saved) {
-                document.getElementById('gender-input').value = saved.gender || 'male';
-                document.getElementById('dob-input').value = saved.dob || '1990-01-01';
-                document.getElementById('weight-input').value = saved.weight || 65;
-                document.getElementById('height-input').value = saved.height || 170;
-                document.getElementById('goal-mode').value = saved.mode || 'keep';
-                if(saved.lastDate === new Date().toLocaleDateString()) todayFoodLogs = saved.logs || todayFoodLogs;
-            }
-            document.getElementById('map-api-key').value = localStorage.getItem('map_api_key') || "";
-
-            // ★ 修正箇所：現在のショートカットURL（steps= と y_steps=）に完全対応
+            // URLパラメータの取得
             const params = new URLSearchParams(window.location.search);
             let urlHasParams = false;
+            let yStepsFromURL = null;
+            let tStepsFromURL = null;
 
-            // ① 昨日の歩数があれば履歴に保存
-            if(params.has('y_steps')) {
-                const ySteps = parseInt(params.get('y_steps')) || 0;
-                saveYesterdayData(ySteps);
-                urlHasParams = true;
+            if(params.has('y_steps')) { yStepsFromURL = parseInt(params.get('y_steps')) || 0; urlHasParams = true; }
+            if(params.has('steps')) { tStepsFromURL = parseInt(params.get('steps')) || 0; urlHasParams = true; }
+
+            const todayStr = new Date().toLocaleDateString();
+            // ※データ保護のため、ローカルストレージの内部キー名は user_lite_profile のままにしています
+            let savedProfile = JSON.parse(localStorage.getItem('user_lite_profile'));
+
+            if(savedProfile) {
+                // プロフィールの復元
+                document.getElementById('gender-input').value = savedProfile.gender || 'male';
+                document.getElementById('dob-input').value = savedProfile.dob || '1990-01-01';
+                document.getElementById('weight-input').value = savedProfile.weight || 65;
+                document.getElementById('height-input').value = savedProfile.height || 170;
+                document.getElementById('goal-mode').value = savedProfile.mode || 'keep';
+
+                if(savedProfile.lastDate && savedProfile.lastDate !== todayStr) {
+                    // ★日付が変わった！前日のデータを完全自動保存する
+                    let pendingSteps = savedProfile.steps || 0;
+                    const yesterdayStr = new Date(Date.now() - 86400000).toLocaleDateString();
+
+                    // もし前日が昨日で、ショートカットからy_stepsが来ていれば、より正確なy_stepsを採用！
+                    if (savedProfile.lastDate === yesterdayStr && yStepsFromURL !== null) {
+                        pendingSteps = yStepsFromURL;
+                    }
+
+                    // 前日の食事と歩数を合算して履歴にブチ込む
+                    performAutoSave(savedProfile.lastDate, pendingSteps, savedProfile.logs, savedProfile);
+
+                    // 今日のために食事と歩数をリセット
+                    todayFoodLogs = { bf: [], lu: [], dn: [], sn: [] };
+                    steps = 0;
+                } else {
+                    // 日付が同じなら今日のデータを継続
+                    todayFoodLogs = savedProfile.logs || { bf: [], lu: [], dn: [], sn: [] };
+                    steps = savedProfile.steps || 0;
+                }
+            } else {
+                // 初回起動時
+                savedProfile = { lastDate: todayStr, logs: todayFoodLogs, steps: 0 };
             }
 
-            // ② 今日の歩数 (steps) があれば変数にセットして画面に表示
-            if(params.has('steps')) {
-                steps = parseInt(params.get('steps')) || 0;
-                document.getElementById('steps-display').innerText = steps.toLocaleString();
-                urlHasParams = true;
+            document.getElementById('map-api-key').value = localStorage.getItem('map_api_key') || "";
+
+            // URLから今日の歩数が来ていれば上書き
+            if (tStepsFromURL !== null) {
+                steps = tStepsFromURL;
+            }
+            
+            // 何日かぶりに開いた時用：昨日の歩数だけは最低限記録しておく
+            if (yStepsFromURL !== null) {
+                forceUpdateYesterdaySteps(yStepsFromURL, savedProfile);
             }
 
-            // 処理後、URLを綺麗に掃除する（リロード対策）
+            // 画面に歩数を表示
+            document.getElementById('steps-display').innerText = steps.toLocaleString();
+
+            // URLの掃除
             if (urlHasParams) {
                 window.history.replaceState(null, '', window.location.pathname);
             }
 
+            // すべての計算を実行して画面更新
             renderLogs(); calcAll(); displayHistory(); initMap();
         };
     </script>
