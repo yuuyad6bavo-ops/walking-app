@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マイウォーキングアプリ 通常版 v13.5</title>
+    <title>マイウォーキングアプリ 通常版 v13.6</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -61,13 +61,21 @@
         .route-mode-box label { flex: 1; text-align: center; font-weight: bold; font-size: 0.8em; cursor: pointer; }
         .route-mode-box input[type="radio"] { display: none; }
         .route-mode-box input[type="radio"]:checked + span { color: #3498db; border-bottom: 2px solid #3498db; }
+
+        /* スリープ防止用のCSS */
+        #wake-lock-status { font-size: 0.8em; text-align: center; padding: 5px; border-radius: 20px; margin-top: 10px; margin-bottom: 10px; }
+        .status-on { background: #d4edda; color: #155724; } 
+        .status-off { background: #f8d7da; color: #721c24; }
     </style>
 </head>
 <body>
     <div class="container">
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
-                <h1>健康ログ <span class="version-badge">v13.5 通常版</span></h1>
+                <h1>健康ログ <span class="version-badge">v13.6 通常版</span></h1>
+                
+                <div id="wake-lock-status" class="status-off">スリープ防止：OFF (画面タップ)</div>
+
                 <div style="background: #f0f4f8; padding: 10px; border-radius: 10px; margin-bottom: 15px;">
                     <strong>目標ルート作成:</strong><br>
                     <div class="route-mode-box">
@@ -98,7 +106,7 @@
                     <div id="map"></div>
                     <div id="fullscreen-controls">
                         <div class="fs-btn-row">
-                            <button style="background: #2980b9;" onclick="centerMap()">📍開始</button>
+                            <button style="background: #2980b9;" onclick="centerMap()">📍現在地(開始)</button>
                             <button style="background: #27ae60;" onclick="enableWaypointMode()">🟢追加</button>
                             <button style="background: #e74c3c;" onclick="clearMap()">✖消去</button>
                             <button style="background: #7f8c8d;" onclick="toggleFullscreen()">❌閉じる</button>
@@ -179,9 +187,9 @@
     </div>
 
     <nav class="bottom-nav">
-        <button class="nav-btn active" id="btn-walk" onclick="switchMainTab('walk')"><span>🚶‍♂️</span>歩行</button>
-        <button class="nav-btn" id="btn-meal" onclick="switchMainTab('meal')"><span>⚖️</span>食事</button>
-        <button class="nav-btn" id="btn-history" onclick="switchMainTab('history')"><span>📊</span>履歴</button>
+        <button class="nav-btn active" id="btn-walk" onclick="switchMainTab('walk')"><span style="font-size:1.3em;">🚶‍♂️</span>歩行</button>
+        <button class="nav-btn" id="btn-meal" onclick="switchMainTab('meal')"><span style="font-size:1.3em;">⚖️</span>食事</button>
+        <button class="nav-btn" id="btn-history" onclick="switchMainTab('history')"><span style="font-size:1.3em;">📊</span>履歴</button>
     </nav>
 
     <script>
@@ -297,16 +305,12 @@
             };
             updateBar('p', tP, targetP); updateBar('f', tF, targetF); updateBar('c', tC, targetC);
 
-            // ローカルストレージ内のプロフィール・状態を更新（過去のデータ復元用も兼ねる）
-            // ※データ保護のためキー名は user_lite_profile を維持しています
             localStorage.setItem('user_lite_profile', JSON.stringify({
                 gender, dob: dobValue, weight, height, mode, logs: todayFoodLogs, 
-                steps: steps, 
-                lastDate: new Date().toLocaleDateString()
+                steps: steps, lastDate: new Date().toLocaleDateString()
             }));
         }
 
-        // 手動保存ボタン
         function saveCurrentData() {
             let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
             const date = new Date().toLocaleDateString();
@@ -319,10 +323,8 @@
             displayHistory(); renderGraph();
         }
 
-        // ★ 完全自動保存ロジック（日付をまたいだ時の過去データ精算）
         function performAutoSave(dateStr, stepCount, logs, profile) {
             let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
-            // すでに同じ日付があれば上書きのために削除
             history = history.filter(h => h.date !== dateStr); 
 
             const weight = parseFloat(profile.weight) || 65;
@@ -359,7 +361,6 @@
             localStorage.setItem('walkingHistory', JSON.stringify(history));
         }
 
-        // 昨日の歩数だけを強制上書き（何日かぶりに開いた時用）
         function forceUpdateYesterdaySteps(ySteps, profile) {
             let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
             const yesterdayStr = new Date(Date.now() - 86400000).toLocaleDateString();
@@ -464,7 +465,8 @@
 
         function centerMap() {
             isTrackingMode = true;
-            if (map) map.setView([currentLat, currentLng], 17);
+            // ★変更点：ズームレベルを最大(19)に設定
+            if (map) map.setView([currentLat, currentLng], 19);
         }
 
         function clearMap() { 
@@ -554,7 +556,6 @@
             if(params.has('steps')) { tStepsFromURL = parseInt(params.get('steps')) || 0; urlHasParams = true; }
 
             const todayStr = new Date().toLocaleDateString();
-            // ※データ保護のため、ローカルストレージの内部キー名は user_lite_profile のままにしています
             let savedProfile = JSON.parse(localStorage.getItem('user_lite_profile'));
 
             if(savedProfile) {
@@ -566,52 +567,53 @@
                 document.getElementById('goal-mode').value = savedProfile.mode || 'keep';
 
                 if(savedProfile.lastDate && savedProfile.lastDate !== todayStr) {
-                    // ★日付が変わった！前日のデータを完全自動保存する
                     let pendingSteps = savedProfile.steps || 0;
                     const yesterdayStr = new Date(Date.now() - 86400000).toLocaleDateString();
 
-                    // もし前日が昨日で、ショートカットからy_stepsが来ていれば、より正確なy_stepsを採用！
                     if (savedProfile.lastDate === yesterdayStr && yStepsFromURL !== null) {
                         pendingSteps = yStepsFromURL;
                     }
 
-                    // 前日の食事と歩数を合算して履歴にブチ込む
                     performAutoSave(savedProfile.lastDate, pendingSteps, savedProfile.logs, savedProfile);
 
-                    // 今日のために食事と歩数をリセット
                     todayFoodLogs = { bf: [], lu: [], dn: [], sn: [] };
                     steps = 0;
                 } else {
-                    // 日付が同じなら今日のデータを継続
                     todayFoodLogs = savedProfile.logs || { bf: [], lu: [], dn: [], sn: [] };
                     steps = savedProfile.steps || 0;
                 }
             } else {
-                // 初回起動時
                 savedProfile = { lastDate: todayStr, logs: todayFoodLogs, steps: 0 };
             }
 
             document.getElementById('map-api-key').value = localStorage.getItem('map_api_key') || "";
 
-            // URLから今日の歩数が来ていれば上書き
             if (tStepsFromURL !== null) {
                 steps = tStepsFromURL;
             }
             
-            // 何日かぶりに開いた時用：昨日の歩数だけは最低限記録しておく
             if (yStepsFromURL !== null) {
                 forceUpdateYesterdaySteps(yStepsFromURL, savedProfile);
             }
 
-            // 画面に歩数を表示
             document.getElementById('steps-display').innerText = steps.toLocaleString();
 
-            // URLの掃除
             if (urlHasParams) {
                 window.history.replaceState(null, '', window.location.pathname);
             }
 
-            // すべての計算を実行して画面更新
+            // ★ スリープ防止機能の起動
+            try {
+                window.requestWakeLock = async function() {
+                    try { 
+                        let wakeLock = await navigator.wakeLock.request('screen');
+                        document.getElementById('wake-lock-status').innerText = "スリープ防止：ON (計測中)"; 
+                        document.getElementById('wake-lock-status').className = "status-on";
+                    } catch (err) {}
+                };
+                document.body.addEventListener('click', requestWakeLock);
+            } catch(e) {}
+
             renderLogs(); calcAll(); displayHistory(); initMap();
         };
     </script>
