@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マイウォーキングアプリ LITE v13.2</title>
+    <title>マイウォーキングアプリ LITE v13.3</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -11,7 +11,7 @@
     
     <style>
         body { font-family: sans-serif; margin: 0; padding: 0; background-color: #f0f4f8; color: #333; padding-bottom: 80px; }
-        body.fullscreen-active { overflow: hidden; } /* 全画面時のスクロール防止 */
+        body.fullscreen-active { overflow: hidden; } 
         .container { max-width: 600px; margin: auto; padding: 15px; }
         .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 15px; }
         h1 { font-size: 1.2em; margin: 0; border-bottom: 2px solid #27ae60; padding-bottom: 5px; }
@@ -25,9 +25,8 @@
         .data-item { background: #eef2f7; padding: 10px; border-radius: 10px; text-align: center; }
         .data-value { font-size: 1.2em; font-weight: bold; color: #3498db; }
         
-        /* 🗺️ 地図のフルスクリーンUI設定 */
         #map-container { position: relative; margin-bottom: 15px; }
-        #map { height: 320px; width: 100%; border-radius: 15px; border: 2px solid #ddd; z-index: 1; }
+        #map { height: 320px; width: 100%; border-radius: 15px; border: 2px solid #ddd; z-index: 1; background: #f9f9f9; }
         #normal-fullscreen-btn { position: absolute; top: 10px; right: 10px; z-index: 1000; padding: 8px 12px; background: white; border: 2px solid #ccc; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
         #map-container.is-fullscreen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10000; margin: 0; background: white; }
         #map-container.is-fullscreen #map { height: 100vh !important; border-radius: 0; border: none; }
@@ -68,7 +67,7 @@
     <div class="container">
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
-                <h1>健康ログ <span class="version-badge">v13.2 LITE</span></h1>
+                <h1>健康ログ <span class="version-badge">v13.3 LITE</span></h1>
                 <div style="background: #f0f4f8; padding: 10px; border-radius: 10px; margin-bottom: 15px;">
                     <strong>目標ルート作成:</strong><br>
                     <div class="route-mode-box">
@@ -107,7 +106,6 @@
                         <button id="fs-route-btn" class="fs-btn-search" onclick="generateGoalRoute()">🔍 ルートを再検索</button>
                     </div>
                 </div>
-
             </div>
         </div>
 
@@ -187,11 +185,10 @@
     </nav>
 
     <script>
-        let steps = 0;
+        let steps = 0; // LITE版の「今日の歩数」は手動や別アプリ管理想定のため基本0スタート
         let todayFoodLogs = { bf: [], lu: [], dn: [], sn: [] };
         let myChart = null;
         
-        // --- 地図用変数 ---
         let map, marker, goalPath, destMarker, waypointMarker;
         let currentLat = 35.6812, currentLng = 139.7671;
         let isTrackingMode = true;
@@ -305,14 +302,42 @@
             }));
         }
 
+        // 今日のデータを手動保存する処理
         function saveCurrentData() {
             let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
             const date = new Date().toLocaleDateString();
             const weight = document.getElementById('weight-input').value;
             const data = { date, steps, weight, balance: document.getElementById('balance-result-text').innerText };
+            
             history = [data, ...history.filter(h => h.date !== date)];
             localStorage.setItem('walkingHistory', JSON.stringify(history));
-            alert("保存しました！"); displayHistory(); renderGraph();
+            alert("今日の記録を保存しました！"); 
+            displayHistory(); renderGraph();
+        }
+
+        // ★ 修正箇所：昨日の歩数を自動で裏側保存する処理
+        function saveYesterdayData(ySteps) {
+            let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
+            
+            // 昨日の日付を計算
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yDateStr = yesterday.toLocaleDateString();
+
+            // 現在の体重を取得
+            const weight = document.getElementById('weight-input').value || 65;
+            
+            const existingIndex = history.findIndex(h => h.date === yDateStr);
+            if (existingIndex !== -1) {
+                history[existingIndex].steps = ySteps; // 歩数だけ上書き
+            } else {
+                history.unshift({ date: yDateStr, steps: ySteps, weight: weight, balance: "---" });
+            }
+            
+            // 日付順に並び替え
+            history.sort((a, b) => new Date(b.date) - new Date(a.date));
+            localStorage.setItem('walkingHistory', JSON.stringify(history));
+            alert(`ショートカット連携完了：\n昨日の歩数（${ySteps}歩）を履歴に自動保存しました！`);
         }
 
         function displayHistory() {
@@ -335,14 +360,13 @@
             });
         }
 
-        // --- 地図関連（完全修復） ---
+        // --- 地図関連 ---
         function initMap() {
             map = L.map('map', {zoomControl: false}).setView([currentLat, currentLng], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
             marker = L.marker([currentLat, currentLng]).addTo(map);
             goalPath = L.polyline([], {color: '#2980b9', weight: 6}).addTo(map);
 
-            // 地図をドラッグしたら追従モードを解除
             map.on('dragstart', () => { isTrackingMode = false; });
 
             if (navigator.geolocation) {
@@ -402,7 +426,6 @@
             document.getElementById('dest-hint').style.display = (mode === 'dest' ? 'block' : 'none');
         }
 
-        // 📍開始ボタン（現在地追従をONにする）
         function centerMap() {
             isTrackingMode = true;
             if (map) map.setView([currentLat, currentLng], 17);
@@ -439,20 +462,11 @@
 
             try {
                 let url = 'https://api.openrouteservice.org/v2/directions/foot-hiking/geojson';
-                let body = { 
-                    coordinates: [[currentLng, currentLat]],
-                    units: "m"
-                };
+                let body = { coordinates: [[currentLng, currentLat]], units: "m" };
 
                 if (mode === 'loop') {
                     let distMeters = (type === 'distance' ? value : value * 0.0007) * 1000;
-                    body.options = { 
-                        round_trip: { 
-                            length: Math.round(distMeters), 
-                            points: 3, 
-                            seed: Math.floor(Math.random()*100) 
-                        } 
-                    };
+                    body.options = { round_trip: { length: Math.round(distMeters), points: 3, seed: Math.floor(Math.random()*100) } };
                 } else {
                     if (!destMarker) throw new Error("目的地を地図上でタップしてください");
                     if (waypointMarker) {
@@ -473,7 +487,7 @@
 
                 if (!res.ok) {
                     const err = await res.json();
-                    throw new Error(err.error?.message || "通信エラー (Load failed)");
+                    throw new Error(err.error?.message || "通信エラー");
                 }
 
                 const data = await res.json();
@@ -482,7 +496,7 @@
                 const route = data.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
                 goalPath.setLatLngs(route);
                 map.fitBounds(goalPath.getBounds());
-                isTrackingMode = false; // ルート検索後は全体を見せるために追従をOFFにする
+                isTrackingMode = false;
                 
                 alert("ルートを作成しました！");
             } catch (e) { 
@@ -494,9 +508,7 @@
         }
 
         window.onload = function() {
-            const params = new URLSearchParams(window.location.search);
-            steps = parseInt(params.get('y_steps')) || 0;
-            document.getElementById('steps-display').innerText = steps.toLocaleString();
+            // プロフィールの読み込み
             const saved = JSON.parse(localStorage.getItem('user_lite_profile'));
             if(saved) {
                 document.getElementById('gender-input').value = saved.gender || 'male';
@@ -507,6 +519,19 @@
                 if(saved.lastDate === new Date().toLocaleDateString()) todayFoodLogs = saved.logs || todayFoodLogs;
             }
             document.getElementById('map-api-key').value = localStorage.getItem('map_api_key') || "";
+
+            // ★ 修正箇所：ショートカットからの連携（昨日の歩数）
+            const params = new URLSearchParams(window.location.search);
+            if(params.has('y_steps')) {
+                const ySteps = parseInt(params.get('y_steps')) || 0;
+                saveYesterdayData(ySteps);
+                
+                // 処理が終わったらURLからパラメータを消去してリロード時のバグを防ぐ
+                window.history.replaceState(null, '', window.location.pathname);
+            }
+            
+            document.getElementById('steps-display').innerText = steps.toLocaleString();
+
             renderLogs(); calcAll(); displayHistory(); initMap();
         };
     </script>
