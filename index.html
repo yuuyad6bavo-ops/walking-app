@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マイウォーキングアプリ 通常版 v13.6</title>
+    <title>マイウォーキングアプリ 通常版 v13.7</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -72,7 +72,7 @@
     <div class="container">
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
-                <h1>健康ログ <span class="version-badge">v13.6 通常版</span></h1>
+                <h1>健康ログ <span class="version-badge">v13.7 通常版</span></h1>
                 
                 <div id="wake-lock-status" class="status-off">スリープ防止：OFF (画面タップ)</div>
 
@@ -146,8 +146,10 @@
                 </div>
 
                 <div style="background:#f0f4f8; padding:10px; border-radius:10px; margin-top:15px; margin-bottom:10px;">
+                    <datalist id="manual-food-list"></datalist>
+                    
                     <div style="display:flex; gap:5px; margin-bottom:5px;">
-                        <input type="text" id="manual-name" placeholder="食品名" style="flex:2;">
+                        <input type="text" id="manual-name" list="manual-food-list" placeholder="食品名" style="flex:2;" oninput="fillManualFood()">
                         <select id="manual-meal-type" style="flex:1;"><option value="bf">朝食</option><option value="lu">昼食</option><option value="dn">夕食</option><option value="sn">間食</option></select>
                     </div>
                     <div class="meal-grid">
@@ -204,6 +206,34 @@
         let isWaypointMode = false;
         let isFirstLocation = true;
 
+        // ★変更箇所：手動入力の記憶用データベースを定義
+        let manualFoodDatabase = JSON.parse(localStorage.getItem('manualFoodDatabase')) || {};
+
+        // ★変更箇所：データリストを更新する関数
+        function updateManualFoodDatalist() {
+            const datalist = document.getElementById('manual-food-list');
+            if (!datalist) return;
+            datalist.innerHTML = '';
+            for (let name in manualFoodDatabase) {
+                const option = document.createElement('option');
+                option.value = name;
+                datalist.appendChild(option);
+            }
+        }
+
+        // ★変更箇所：名前が選ばれたときに数値を自動入力する関数
+        function fillManualFood() {
+            const name = document.getElementById('manual-name').value;
+            if (manualFoodDatabase[name]) {
+                const item = manualFoodDatabase[name];
+                document.getElementById('manual-cal').value = item.kcal;
+                document.getElementById('manual-p').value = item.p;
+                document.getElementById('manual-f').value = item.f;
+                document.getElementById('manual-c').value = item.c;
+                document.getElementById('manual-s').value = item.s;
+            }
+        }
+
         function saveMapKey() {
             const key = document.getElementById('map-api-key').value.trim();
             localStorage.setItem('map_api_key', key);
@@ -225,15 +255,22 @@
 
         function addManualFood() {
             const type = document.getElementById('manual-meal-type').value;
+            const nameStr = document.getElementById('manual-name').value || "食品";
             const item = {
                 id: Date.now(),
-                name: document.getElementById('manual-name').value || "食品",
+                name: nameStr,
                 kcal: parseFloat(document.getElementById('manual-cal').value) || 0,
                 p: parseFloat(document.getElementById('manual-p').value) || 0,
                 f: parseFloat(document.getElementById('manual-f').value) || 0,
                 c: parseFloat(document.getElementById('manual-c').value) || 0,
                 s: parseFloat(document.getElementById('manual-s').value) || 0
             };
+
+            // ★変更箇所：入力された数値をスマホの記憶に保存する
+            manualFoodDatabase[nameStr] = { kcal: item.kcal, p: item.p, f: item.f, c: item.c, s: item.s };
+            localStorage.setItem('manualFoodDatabase', JSON.stringify(manualFoodDatabase));
+            updateManualFoodDatalist();
+
             todayFoodLogs[type].push(item);
             renderLogs(); calcAll(); clearManualInput();
         }
@@ -288,7 +325,14 @@
             const balance = Math.round(tKcal - (bmr + activeCal));
             const balEl = document.getElementById('balance-result-text');
             balEl.innerText = (balance > 0 ? "+" : "") + balance + " kcal";
-            balEl.style.color = (balance > 200 || balance < -500) ? "#e74c3c" : "#27ae60";
+            
+            // ★変更箇所：時間帯によって「赤文字（食べなさすぎ）」にする基準を緩める
+            const currentHour = new Date().getHours();
+            let minAllowed = -500;
+            if (currentHour < 11) minAllowed = -2000; // 朝11時までは-2000kcalまで緑
+            else if (currentHour < 16) minAllowed = -1000; // 昼16時までは-1000kcalまで緑
+
+            balEl.style.color = (balance > 200 || balance < minAllowed) ? "#e74c3c" : "#27ae60";
 
             let targetCal = bmr + activeCal;
             if(mode === 'diet') targetCal -= 300;
@@ -465,7 +509,6 @@
 
         function centerMap() {
             isTrackingMode = true;
-            // ★変更点：ズームレベルを最大(19)に設定
             if (map) map.setView([currentLat, currentLng], 19);
         }
 
@@ -546,7 +589,6 @@
         }
 
         window.onload = function() {
-            // URLパラメータの取得
             const params = new URLSearchParams(window.location.search);
             let urlHasParams = false;
             let yStepsFromURL = null;
@@ -559,7 +601,6 @@
             let savedProfile = JSON.parse(localStorage.getItem('user_lite_profile'));
 
             if(savedProfile) {
-                // プロフィールの復元
                 document.getElementById('gender-input').value = savedProfile.gender || 'male';
                 document.getElementById('dob-input').value = savedProfile.dob || '1990-01-01';
                 document.getElementById('weight-input').value = savedProfile.weight || 65;
@@ -602,7 +643,6 @@
                 window.history.replaceState(null, '', window.location.pathname);
             }
 
-            // ★ スリープ防止機能の起動
             try {
                 window.requestWakeLock = async function() {
                     try { 
@@ -613,6 +653,9 @@
                 };
                 document.body.addEventListener('click', requestWakeLock);
             } catch(e) {}
+
+            // ★変更箇所：起動時にデータリストを更新
+            updateManualFoodDatalist();
 
             renderLogs(); calcAll(); displayHistory(); initMap();
         };
