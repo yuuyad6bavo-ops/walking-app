@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マイウォーキングアプリ 通常版 v13.7</title>
+    <title>マイウォーキングアプリ 通常版 v13.8</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -62,17 +62,25 @@
         .route-mode-box input[type="radio"] { display: none; }
         .route-mode-box input[type="radio"]:checked + span { color: #3498db; border-bottom: 2px solid #3498db; }
 
-        /* スリープ防止用のCSS */
         #wake-lock-status { font-size: 0.8em; text-align: center; padding: 5px; border-radius: 20px; margin-top: 10px; margin-bottom: 10px; }
         .status-on { background: #d4edda; color: #155724; } 
         .status-off { background: #f8d7da; color: #721c24; }
+
+        /* ★変更箇所：編集モーダル用のCSSを追加 */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 100000; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .modal-content h3 { margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+        .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .modal-grid label { font-size: 0.85em; font-weight: bold; color: #555; display: flex; flex-direction: column; }
+        .modal-grid input { padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 1em; margin-top: 3px; }
+        .modal-btn-row { display: flex; gap: 10px; }
     </style>
 </head>
 <body>
     <div class="container">
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
-                <h1>健康ログ <span class="version-badge">v13.7 通常版</span></h1>
+                <h1>健康ログ <span class="version-badge">v13.8 通常版</span></h1>
                 
                 <div id="wake-lock-status" class="status-off">スリープ防止：OFF (画面タップ)</div>
 
@@ -188,6 +196,29 @@
         </div>
     </div>
 
+    <div id="edit-modal" class="modal-overlay">
+        <div class="modal-content">
+            <h3>🍽️ 食事の修正</h3>
+            <div style="margin-bottom: 10px;">
+                <label style="font-size: 0.85em; font-weight: bold; color: #555;">食品名</label>
+                <input type="text" id="edit-name" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 5px; margin-top: 3px; box-sizing: border-box;">
+            </div>
+            <div class="modal-grid">
+                <label>Kcal<input type="number" id="edit-cal"></label>
+                <label>タンパク質(g)<input type="number" id="edit-p"></label>
+                <label>脂質(g)<input type="number" id="edit-f"></label>
+                <label>炭水化物(g)<input type="number" id="edit-c"></label>
+                <label>塩分(g)<input type="number" id="edit-s"></label>
+            </div>
+            <div class="modal-btn-row">
+                <button class="action-btn" style="background:#95a5a6; margin-top:0;" onclick="closeEditModal()">キャンセル</button>
+                <button class="action-btn" style="background:#27ae60; margin-top:0;" onclick="saveEditFood()">保存</button>
+            </div>
+            <input type="hidden" id="edit-type">
+            <input type="hidden" id="edit-id">
+        </div>
+    </div>
+
     <nav class="bottom-nav">
         <button class="nav-btn active" id="btn-walk" onclick="switchMainTab('walk')"><span style="font-size:1.3em;">🚶‍♂️</span>歩行</button>
         <button class="nav-btn" id="btn-meal" onclick="switchMainTab('meal')"><span style="font-size:1.3em;">⚖️</span>食事</button>
@@ -206,10 +237,8 @@
         let isWaypointMode = false;
         let isFirstLocation = true;
 
-        // ★変更箇所：手動入力の記憶用データベースを定義
         let manualFoodDatabase = JSON.parse(localStorage.getItem('manualFoodDatabase')) || {};
 
-        // ★変更箇所：データリストを更新する関数
         function updateManualFoodDatalist() {
             const datalist = document.getElementById('manual-food-list');
             if (!datalist) return;
@@ -221,7 +250,6 @@
             }
         }
 
-        // ★変更箇所：名前が選ばれたときに数値を自動入力する関数
         function fillManualFood() {
             const name = document.getElementById('manual-name').value;
             if (manualFoodDatabase[name]) {
@@ -266,7 +294,6 @@
                 s: parseFloat(document.getElementById('manual-s').value) || 0
             };
 
-            // ★変更箇所：入力された数値をスマホの記憶に保存する
             manualFoodDatabase[nameStr] = { kcal: item.kcal, p: item.p, f: item.f, c: item.c, s: item.s };
             localStorage.setItem('manualFoodDatabase', JSON.stringify(manualFoodDatabase));
             updateManualFoodDatalist();
@@ -280,13 +307,72 @@
             renderLogs(); calcAll();
         }
 
+        // ★変更箇所：「修正」ボタンを追加
         function renderLogs() {
             ['bf','lu','dn','sn'].forEach(type => {
                 const container = document.getElementById(type + '-log');
                 container.innerHTML = todayFoodLogs[type].map(item => `
-                    <div class="food-log-item"><span>${item.name} (${item.kcal}kcal)</span><button onclick="removeFood('${type}', ${item.id})">✖</button></div>
+                    <div class="food-log-item">
+                        <span>${item.name} (${item.kcal}kcal)</span>
+                        <div>
+                            <button style="background: #f39c12; margin-right: 5px;" onclick="openEditModal('${type}', ${item.id})">✏️ 修正</button>
+                            <button onclick="removeFood('${type}', ${item.id})">✖</button>
+                        </div>
+                    </div>
                 `).join('');
             });
+        }
+
+        // ★変更箇所：食事の修正機能（ポップアップ操作とデータ上書き）のJavaScriptを追加
+        function openEditModal(type, id) {
+            const item = todayFoodLogs[type].find(i => i.id === id);
+            if (!item) return;
+            
+            document.getElementById('edit-type').value = type;
+            document.getElementById('edit-id').value = id;
+            document.getElementById('edit-name').value = item.name;
+            document.getElementById('edit-cal').value = item.kcal;
+            document.getElementById('edit-p').value = item.p;
+            document.getElementById('edit-f').value = item.f;
+            document.getElementById('edit-c').value = item.c;
+            document.getElementById('edit-s').value = item.s;
+            
+            document.getElementById('edit-modal').style.display = 'flex';
+        }
+
+        function closeEditModal() {
+            document.getElementById('edit-modal').style.display = 'none';
+        }
+
+        function saveEditFood() {
+            const type = document.getElementById('edit-type').value;
+            const id = parseInt(document.getElementById('edit-id').value);
+            const nameStr = document.getElementById('edit-name').value || "食品";
+            
+            const newKcal = parseFloat(document.getElementById('edit-cal').value) || 0;
+            const newP = parseFloat(document.getElementById('edit-p').value) || 0;
+            const newF = parseFloat(document.getElementById('edit-f').value) || 0;
+            const newC = parseFloat(document.getElementById('edit-c').value) || 0;
+            const newS = parseFloat(document.getElementById('edit-s').value) || 0;
+
+            const idx = todayFoodLogs[type].findIndex(i => i.id === id);
+            if (idx !== -1) {
+                todayFoodLogs[type][idx].name = nameStr;
+                todayFoodLogs[type][idx].kcal = newKcal;
+                todayFoodLogs[type][idx].p = newP;
+                todayFoodLogs[type][idx].f = newF;
+                todayFoodLogs[type][idx].c = newC;
+                todayFoodLogs[type][idx].s = newS;
+            }
+
+            // スマホの記憶も新しい数値で上書き
+            manualFoodDatabase[nameStr] = { kcal: newKcal, p: newP, f: newF, c: newC, s: newS };
+            localStorage.setItem('manualFoodDatabase', JSON.stringify(manualFoodDatabase));
+            updateManualFoodDatalist();
+
+            closeEditModal();
+            renderLogs();
+            calcAll();
         }
 
         function calcAll() {
@@ -326,11 +412,10 @@
             const balEl = document.getElementById('balance-result-text');
             balEl.innerText = (balance > 0 ? "+" : "") + balance + " kcal";
             
-            // ★変更箇所：時間帯によって「赤文字（食べなさすぎ）」にする基準を緩める
             const currentHour = new Date().getHours();
             let minAllowed = -500;
-            if (currentHour < 11) minAllowed = -2000; // 朝11時までは-2000kcalまで緑
-            else if (currentHour < 16) minAllowed = -1000; // 昼16時までは-1000kcalまで緑
+            if (currentHour < 11) minAllowed = -2000; 
+            else if (currentHour < 16) minAllowed = -1000; 
 
             balEl.style.color = (balance > 200 || balance < minAllowed) ? "#e74c3c" : "#27ae60";
 
@@ -441,7 +526,6 @@
             });
         }
 
-        // --- 地図関連 ---
         function initMap() {
             map = L.map('map', {zoomControl: false}).setView([currentLat, currentLng], 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
@@ -654,9 +738,7 @@
                 document.body.addEventListener('click', requestWakeLock);
             } catch(e) {}
 
-            // ★変更箇所：起動時にデータリストを更新
             updateManualFoodDatalist();
-
             renderLogs(); calcAll(); displayHistory(); initMap();
         };
     </script>
