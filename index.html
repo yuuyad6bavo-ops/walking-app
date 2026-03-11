@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>マイウォーキングアプリ 通常版 v13.8</title>
+    <title>マイウォーキングアプリ 通常版 v13.9</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -46,12 +46,12 @@
         button.action-btn { width: 100%; padding: 12px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; background: #3498db; color: white; margin-top: 10px; }
         button.save-btn { background: #27ae60; font-size: 1.1em; padding: 15px; }
         details { background: #f8f9fa; padding: 10px; border-radius: 10px; margin-bottom: 10px; border: 1px solid #eee; }
-        summary { font-weight: bold; cursor: pointer; padding: 5px 0; }
+        summary { font-weight: bold; cursor: pointer; padding: 5px 0; outline: none; }
         .profile-row { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 10px; font-size: 0.9em; }
         .meal-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 10px; text-align: center; font-size: 0.6em; }
         .meal-grid input { padding: 5px; font-size: 1em; text-align: center; }
         .food-log-item { display: flex; justify-content: space-between; align-items: center; background: #fff; border: 1px solid #ddd; padding: 6px 10px; border-radius: 5px; font-size: 0.85em; margin-bottom: 5px; }
-        .food-log-item button { background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 0.8em; }
+        .food-log-item button { background: #e74c3c; color: white; border: none; border-radius: 4px; padding: 4px 8px; font-size: 0.8em; cursor: pointer; }
         .pfc-container { margin-top: 15px; padding: 12px; background: #fff; border-radius: 10px; border: 1px solid #ddd; }
         .pfc-bar-bg { background: #eef2f7; border-radius: 5px; height: 12px; width: 100%; overflow: hidden; margin-bottom: 8px; }
         .pfc-bar-fg { height: 100%; width: 0%; transition: width 0.4s ease; }
@@ -66,7 +66,6 @@
         .status-on { background: #d4edda; color: #155724; } 
         .status-off { background: #f8d7da; color: #721c24; }
 
-        /* ★変更箇所：編集モーダル用のCSSを追加 */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 100000; justify-content: center; align-items: center; }
         .modal-content { background: white; padding: 20px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
         .modal-content h3 { margin-top: 0; margin-bottom: 15px; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
@@ -74,13 +73,19 @@
         .modal-grid label { font-size: 0.85em; font-weight: bold; color: #555; display: flex; flex-direction: column; }
         .modal-grid input { padding: 8px; border: 1px solid #ccc; border-radius: 5px; font-size: 1em; margin-top: 3px; }
         .modal-btn-row { display: flex; gap: 10px; }
+
+        /* ★追加：グラフと履歴のデザイン */
+        .chart-tabs { display: flex; gap: 5px; margin-bottom: 10px; }
+        .chart-tab-btn { flex: 1; padding: 8px; border-radius: 5px; border: 1px solid #ccc; background: #f0f4f8; font-size: 0.9em; cursor: pointer; }
+        .chart-tab-btn.active { background: #3498db; color: white; border-color: #2980b9; font-weight: bold; }
+        .history-item { background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #27ae60; font-size: 0.85em; line-height: 1.5; }
     </style>
 </head>
 <body>
     <div class="container">
         <div id="tab-walk" class="main-tab-content active">
             <div class="card">
-                <h1>健康ログ <span class="version-badge">v13.8 通常版</span></h1>
+                <h1>健康ログ <span class="version-badge">v13.9 通常版</span></h1>
                 
                 <div id="wake-lock-status" class="status-off">スリープ防止：OFF (画面タップ)</div>
 
@@ -128,25 +133,42 @@
         <div id="tab-meal" class="main-tab-content">
             <div class="card">
                 <h2 style="margin-top:0;">⚖️ 体調と食事</h2>
-                <details>
-                    <summary>⚙️ プロフィール・API設定</summary>
-                    <div class="profile-row">
-                        <span>地図APIキー:</span>
-                        <div style="display: flex; gap: 5px; flex: 1;">
-                            <input type="password" id="map-api-key" placeholder="ey...">
-                            <button onclick="saveMapKey()" style="background:#3498db; color:white; border:none; border-radius:5px; padding:0 10px; cursor:pointer;">保存</button>
+                
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eee;">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <div style="flex: 1;">
+                            <label style="font-size:0.85em; font-weight:bold; color:#555;">🎯 目標モード:</label>
+                            <select id="goal-mode" onchange="calcAll()" style="font-weight:bold; background:#e8f8f5; border-color:#16a085; color:#16a085; width:100%; padding:8px; border-radius:5px;">
+                                <option value="diet">📉 ダイエット</option>
+                                <option value="keep" selected>⚖️ 健康維持</option>
+                                <option value="muscle">💪 筋力アップ</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="font-size:0.85em; font-weight:bold; color:#555;">⚖️ 体重(kg):</label>
+                            <input type="number" id="weight-input" value="65" oninput="calcAll()" style="font-weight:bold; text-align:center; width:100%; padding:8px; border-radius:5px; border:1px solid #ccc;">
                         </div>
                     </div>
-                    <div class="profile-row"><span>性別:</span> <select id="gender-input" onchange="calcAll()"><option value="male">男性</option><option value="female">女性</option></select></div>
-                    <div class="profile-row"><span>生年月日:</span> <input type="date" id="dob-input" value="1990-01-01" onchange="calcAll()"></div>
-                    <div class="profile-row"><span>身長(cm):</span> <input type="number" id="height-input" value="170" oninput="calcAll()"></div>
-                    <div class="profile-row"><span>体重(kg):</span> <input type="number" id="weight-input" value="65" oninput="calcAll()"></div>
-                    <div class="profile-row"><span>目標モード:</span> <select id="goal-mode" onchange="calcAll()"><option value="diet">📉 ダイエット</option><option value="keep" selected>⚖️ 健康維持</option><option value="muscle">💪 筋力アップ</option></select></div>
-                </details>
+                    
+                    <div style="text-align: center; padding: 8px; background: #fff; border-radius: 5px; border: 1px solid #ccc; margin-bottom: 10px; font-size: 0.9em;">
+                        BMI: <strong id="bmi-display" style="color:#2980b9;">0.0</strong> ｜ 基礎代謝: <strong id="bmr-display" style="color:#e67e22;">0</strong> kcal
+                    </div>
 
-                <div style="text-align: center; padding: 10px; background: #eef2f7; border-radius: 10px; margin-bottom: 10px; font-size: 0.9em;">
-                    BMI: <strong id="bmi-display">0.0</strong> ｜ 基礎代謝: <strong id="bmr-display">0</strong> kcal
+                    <details style="background: #fff; border: 1px solid #ddd; padding: 5px 10px; border-radius: 5px;">
+                        <summary style="font-size:0.85em; color:#777; font-weight:bold; cursor:pointer;">⚙️ その他の設定 (身長・年齢・APIキー等)</summary>
+                        <div class="profile-row">
+                            <span>地図APIキー:</span>
+                            <div style="display: flex; gap: 5px; flex: 1; margin-left: 10px;">
+                                <input type="password" id="map-api-key" placeholder="ey...">
+                                <button onclick="saveMapKey()" style="background:#3498db; color:white; border:none; border-radius:5px; padding:0 10px; cursor:pointer;">保存</button>
+                            </div>
+                        </div>
+                        <div class="profile-row"><span>性別:</span> <select id="gender-input" onchange="calcAll()"><option value="male">男性</option><option value="female">女性</option></select></div>
+                        <div class="profile-row"><span>生年月日:</span> <input type="date" id="dob-input" value="1990-01-01" onchange="calcAll()"></div>
+                        <div class="profile-row"><span>身長(cm):</span> <input type="number" id="height-input" value="170" oninput="calcAll()"></div>
+                    </details>
                 </div>
+
                 <div class="balance-box">
                     🔥 <strong>今日のカロリーバランス</strong><br>
                     <small>摂取 <span id="bal-in">0</span> - 消費 <span id="bal-out">0</span></small>
@@ -188,9 +210,16 @@
 
         <div id="tab-history" class="main-tab-content">
             <div class="card">
-                <h2>📊 体重推移</h2>
+                <h2 style="margin-top:0;">📊 カラダの変化グラフ</h2>
+                <div class="chart-tabs">
+                    <button id="tab-weight" class="chart-tab-btn active" onclick="switchGraph('weight')">体重</button>
+                    <button id="tab-steps" class="chart-tab-btn" onclick="switchGraph('steps')">歩数</button>
+                </div>
                 <div style="background: white; border: 1px solid #ddd; border-radius: 10px; padding: 5px;"><canvas id="healthChart"></canvas></div>
-                <h3 style="font-size: 1em; margin-top: 20px;">🗓️ 過去の履歴</h3>
+            </div>
+            
+            <div class="card">
+                <h2 style="margin-top:0;">🗓️ 過去の履歴</h2>
                 <div id="history-list"></div>
             </div>
         </div>
@@ -229,6 +258,7 @@
         let steps = 0; 
         let todayFoodLogs = { bf: [], lu: [], dn: [], sn: [] };
         let myChart = null;
+        window.currentGraphMode = 'weight';
         
         let map, marker, goalPath, destMarker, waypointMarker;
         let currentLat = 35.6812, currentLng = 139.7671;
@@ -307,7 +337,6 @@
             renderLogs(); calcAll();
         }
 
-        // ★変更箇所：「修正」ボタンを追加
         function renderLogs() {
             ['bf','lu','dn','sn'].forEach(type => {
                 const container = document.getElementById(type + '-log');
@@ -323,7 +352,6 @@
             });
         }
 
-        // ★変更箇所：食事の修正機能（ポップアップ操作とデータ上書き）のJavaScriptを追加
         function openEditModal(type, id) {
             const item = todayFoodLogs[type].find(i => i.id === id);
             if (!item) return;
@@ -365,7 +393,6 @@
                 todayFoodLogs[type][idx].s = newS;
             }
 
-            // スマホの記憶も新しい数値で上書き
             manualFoodDatabase[nameStr] = { kcal: newKcal, p: newP, f: newF, c: newC, s: newS };
             localStorage.setItem('manualFoodDatabase', JSON.stringify(manualFoodDatabase));
             updateManualFoodDatalist();
@@ -440,11 +467,20 @@
             }));
         }
 
+        // ★変更箇所：摂取カロリー(inCal)の保存処理を追加
         function saveCurrentData() {
             let history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
             const date = new Date().toLocaleDateString();
             const weight = document.getElementById('weight-input').value;
-            const data = { date, steps, weight, balance: document.getElementById('balance-result-text').innerText };
+            const inCal = document.getElementById('bal-in').innerText;
+            
+            const data = { 
+                date, 
+                steps, 
+                weight, 
+                inCal, 
+                balance: document.getElementById('balance-result-text').innerText 
+            };
             
             history = [data, ...history.filter(h => h.date !== date)];
             localStorage.setItem('walkingHistory', JSON.stringify(history));
@@ -485,7 +521,7 @@
             const balanceNum = Math.round(tKcal - (bmr + activeCal));
             const balanceStr = (balanceNum > 0 ? "+" : "") + balanceNum + " kcal";
 
-            history.unshift({ date: dateStr, steps: stepCount, weight: weight, balance: balanceStr });
+            history.unshift({ date: dateStr, steps: stepCount, weight: weight, inCal: tKcal, balance: balanceStr });
             history.sort((a, b) => new Date(b.date) - new Date(a.date));
             localStorage.setItem('walkingHistory', JSON.stringify(history));
         }
@@ -499,18 +535,45 @@
                 history[existingIndex].steps = ySteps;
             } else {
                 const weight = profile ? (parseFloat(profile.weight) || 65) : 65;
-                history.unshift({ date: yesterdayStr, steps: ySteps, weight: weight, balance: "---" });
+                history.unshift({ date: yesterdayStr, steps: ySteps, weight: weight, inCal: 0, balance: "---" });
             }
 
             history.sort((a, b) => new Date(b.date) - new Date(a.date));
             localStorage.setItem('walkingHistory', JSON.stringify(history));
         }
 
+        // ★変更箇所：表示順の変更と、直近1週間の折りたたみ機能を実装
         function displayHistory() {
             const history = JSON.parse(localStorage.getItem('walkingHistory')) || [];
-            document.getElementById('history-list').innerHTML = history.map(h => `
-                <div class="history-item"><strong>${h.date}</strong><br>体重: ${h.weight}kg / ${h.steps}歩 / 収支: ${h.balance}</div>
-            `).join('');
+            
+            const formatItem = (h) => `
+                <div class="history-item">
+                    <strong>${h.date}</strong><br>
+                    🚶‍♂️ ${h.steps !== undefined ? Number(h.steps).toLocaleString() : 0}歩 / 🍽️ 摂取: ${h.inCal !== undefined ? h.inCal : 0}kcal<br>
+                    ⚖️ バランス: <strong>${h.balance || '---'}</strong> / 👤 体重: ${h.weight || '--'}kg
+                </div>
+            `;
+
+            const recent = history.slice(0, 7);
+            const older = history.slice(7);
+            
+            let html = recent.map(formatItem).join('');
+            
+            if (older.length > 0) {
+                html += `<details><summary style="margin-top:10px; cursor:pointer; color:#3498db; font-weight:bold; font-size:0.9em; padding:10px; background:#eef2f7; border-radius:8px; text-align:center;">以前の履歴（1週間より前）を表示 ▼</summary><div style="margin-top:10px;">`;
+                html += older.map(formatItem).join('');
+                html += `</div></details>`;
+            }
+            
+            document.getElementById('history-list').innerHTML = html;
+        }
+
+        // ★変更箇所：歩数と体重のグラフ切り替え機能
+        function switchGraph(mode) { 
+            window.currentGraphMode = mode; 
+            document.querySelectorAll('.chart-tab-btn').forEach(b => b.classList.remove('active')); 
+            document.getElementById('tab-' + mode).classList.add('active'); 
+            renderGraph(); 
         }
 
         function renderGraph() {
@@ -518,10 +581,23 @@
             if (history.length === 0) return;
             const data = [...history].reverse();
             const ctx = document.getElementById('healthChart').getContext('2d');
+            
+            let dataPoints = [], lineColor = "", labelName = "";
+            
+            if (window.currentGraphMode === 'weight') { 
+                dataPoints = data.map(h => parseFloat(h.weight) || 0); 
+                labelName = "体重(kg)"; 
+                lineColor = "#3498db"; 
+            } else if (window.currentGraphMode === 'steps') { 
+                dataPoints = data.map(h => parseInt(h.steps) || 0); 
+                labelName = "歩数(歩)"; 
+                lineColor = "#27ae60"; 
+            }
+
             if (myChart) myChart.destroy();
             myChart = new Chart(ctx, {
                 type: 'line',
-                data: { labels: data.map(h => h.date), datasets: [{ label: '体重(kg)', data: data.map(h => h.weight), borderColor: '#3498db', tension: 0.3 }] },
+                data: { labels: data.map(h => h.date), datasets: [{ label: labelName, data: dataPoints, borderColor: lineColor, backgroundColor: lineColor, tension: 0.3 }] },
                 options: { responsive: true, plugins: { legend: { display: false } } }
             });
         }
